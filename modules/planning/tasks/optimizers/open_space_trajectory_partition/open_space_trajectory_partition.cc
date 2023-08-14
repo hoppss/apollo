@@ -705,7 +705,7 @@ bool OpenSpaceTrajectoryPartition::InsertGearShiftTrajectory(
 
   return true;
 }
-
+// 什么是gear shift
 void OpenSpaceTrajectoryPartition::GenerateGearShiftTrajectory(
     const canbus::Chassis::GearPosition& gear_position,
     TrajGearPair* gear_switch_idle_time_trajectory) {

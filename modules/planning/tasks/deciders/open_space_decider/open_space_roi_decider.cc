@@ -216,7 +216,7 @@ void OpenSpaceRoiDecider::SetParkingSpotEndPose(
     Frame *const frame, const std::array<common::math::Vec2d, 4> &vertices) {
   const auto &routing_request = frame->local_view().routing->routing_request();
   auto plot_type = routing_request.parking_info().parking_space_type();
-  auto left_top = vertices[0];
+  auto left_top = vertices[0];  // 左上is origin
   auto left_down = vertices[1];
   auto right_down = vertices[2];
   auto right_top = vertices[3];
@@ -235,23 +235,26 @@ void OpenSpaceRoiDecider::SetParkingSpotEndPose(
   right_down.SelfRotate(-origin_heading);
 
   // TODO(Jinyun): adjust end pose setting for more parking spot configurations
-  double parking_spot_heading = (left_down - left_top).Angle();
+  double parking_spot_heading = (left_down - left_top).Angle();  // 这里指的是车位的朝向，比如左下竖直车位， 属于-90度
   double end_x = (left_top.x() + right_top.x()) / 2.0;
   double end_y = 0.0;
   const double parking_depth_buffer =
       config_.open_space_roi_decider_config().parking_depth_buffer();
   CHECK_GE(parking_depth_buffer, 0.0);
   const bool parking_inwards =
-      config_.open_space_roi_decider_config().parking_inwards();
-  const double top_to_down_distance = left_top.y() - left_down.y();
+      config_.open_space_roi_decider_config().parking_inwards(); // inwards 向内
+  const double top_to_down_distance = left_top.y() - left_down.y();  // +
+  // head-out
   if (parking_spot_heading > common::math::kMathEpsilon) {
     if (parking_inwards) {
+      // head-in
       end_y =
           left_down.y() - (std::max(3.0 * -top_to_down_distance / 4.0,
                                     vehicle_params_.front_edge_to_center()) +
                            parking_depth_buffer);
 
     } else {
+      // head-out
       end_y = left_down.y() - (vehicle_params_.back_edge_to_center()+
                                parking_depth_buffer);
     }
@@ -281,10 +284,10 @@ void OpenSpaceRoiDecider::SetParkingSpotEndPose(
   end_pose->push_back(end_x);
   end_pose->push_back(end_y);
   if (config_.open_space_roi_decider_config().parking_inwards()) {
-    end_pose->push_back(parking_spot_heading);
+    end_pose->push_back(parking_spot_heading);  // 车头朝里， 车头朝里时， 与车位朝向一致
   } else {
     end_pose->push_back(
-        common::math::NormalizeAngle(parking_spot_heading + M_PI));
+        common::math::NormalizeAngle(parking_spot_heading + M_PI));  // 车头朝外时， 朝向为 车位朝向 + PI
   }
   end_pose->push_back(0.0);
 }
@@ -1624,6 +1627,8 @@ bool OpenSpaceRoiDecider::LoadObstacleInVertices(
   return true;
 }
 
+// 1. obs超出bound的          {in origin}
+// 2. obs距离自车 && goal 够远 （in world）
 bool OpenSpaceRoiDecider::FilterOutObstacle(const Frame &frame,
                                             const Obstacle &obstacle) {
   if (obstacle.IsVirtual()) {
@@ -1632,14 +1637,14 @@ bool OpenSpaceRoiDecider::FilterOutObstacle(const Frame &frame,
 
   const auto &open_space_info = frame.open_space_info();
   const auto &origin_point = open_space_info.origin_point();
-  const auto &origin_heading = open_space_info.origin_heading();
+  const auto &origin_heading = open_space_info.origin_heading();  // origin (x,y,yaw)
   const auto &obstacle_box = obstacle.PerceptionBoundingBox();
   auto obstacle_center_xy = obstacle_box.center();
 
-  // xy_boundary in xmin, xmax, ymin, ymax.
+  // xy_boundary in xmin, xmax, ymin, ymax. bound 在orgin local 下
   const auto &roi_xy_boundary = open_space_info.ROI_xy_boundary();
   obstacle_center_xy -= origin_point;
-  obstacle_center_xy.SelfRotate(-origin_heading);
+  obstacle_center_xy.SelfRotate(-origin_heading);  // origin is zero point
   if (obstacle_center_xy.x() < roi_xy_boundary[0] ||
       obstacle_center_xy.x() > roi_xy_boundary[1] ||
       obstacle_center_xy.y() < roi_xy_boundary[2] ||
@@ -1648,7 +1653,7 @@ bool OpenSpaceRoiDecider::FilterOutObstacle(const Frame &frame,
   }
 
   // Translate the end pose back to world frame with endpose in x, y, phi, v
-  const auto &end_pose = open_space_info.open_space_end_pose();
+  const auto &end_pose = open_space_info.open_space_end_pose(); // end_pose in orgin local
   Vec2d end_pose_x_y(end_pose[0], end_pose[1]);
   end_pose_x_y.SelfRotate(origin_heading);
   end_pose_x_y += origin_point;
@@ -1656,9 +1661,9 @@ bool OpenSpaceRoiDecider::FilterOutObstacle(const Frame &frame,
   // Get vehicle state
   Vec2d vehicle_x_y(vehicle_state_.x(), vehicle_state_.y());
 
-  // Use vehicle position and end position to filter out obstacle
+  // Use vehicle position and end position to filter out obstacle， 障碍物距离自车和goal 比较远
   const double vehicle_center_to_obstacle =
-      obstacle_box.DistanceTo(vehicle_x_y);
+      obstacle_box.DistanceTo(vehicle_x_y);  // 在世界坐标系下比较
   const double end_pose_center_to_obstacle =
       obstacle_box.DistanceTo(end_pose_x_y);
   const double filtering_distance =

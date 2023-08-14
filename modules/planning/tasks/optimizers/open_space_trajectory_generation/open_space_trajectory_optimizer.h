@@ -174,3 +174,78 @@ class OpenSpaceTrajectoryOptimizer {
 };
 }  // namespace planning
 }  // namespace apollo
+
+
+
+/*
+message PlannerOpenSpaceConfig {
+  // Open Space ROIConfig
+  optional ROIConfig roi_config = 1;
+  // Hybrid A Star Warm Start
+  optional WarmStartConfig warm_start_config = 2;
+  // Dual Variable Warm Start
+  optional DualVariableWarmStartConfig dual_variable_warm_start_config = 3;
+  // Distance Approach Configs
+  optional DistanceApproachConfig distance_approach_config = 4;
+  // Iterative Anchoring Configs
+  optional IterativeAnchoringConfig iterative_anchoring_smoother_config = 5;
+  // Trajectory PartitionConfig Configs
+  optional TrajectoryPartitionConfig trajectory_partition_config = 6;
+  optional float delta_t = 7 [default = 1.0];
+  optional double is_near_destination_threshold = 8 [default = 0.001];
+  optional bool enable_check_parallel_trajectory = 9 [default = false];
+  optional bool enable_linear_interpolation = 10 [default = false];
+  optional double is_near_destination_theta_threshold = 11 [default = 0.05];
+}
+
+message ROIConfig {
+  // longitudinal range of parking roi backward
+  optional double roi_longitudinal_range_start = 1 [default = 10.0];
+  // longitudinal range of parking roi forward
+  optional double roi_longitudinal_range_end = 2 [default = 10.0];
+  // parking spot range detection threshold
+  optional double parking_start_range = 3 [default = 7.0];
+  // Parking orientation for reverse parking
+  optional bool parking_inwards = 4 [default = false];
+}
+
+message WarmStartConfig {
+  // Hybrid a star for warm start
+  optional double xy_grid_resolution = 1 [default = 0.2];
+  optional double phi_grid_resolution = 2 [default = 0.05];
+  optional uint64 next_node_num = 3 [default = 10];
+  optional double step_size = 4 [default = 0.5];
+  optional double traj_forward_penalty = 5 [default = 0.0];
+  optional double traj_back_penalty = 6 [default = 0.0];
+  optional double traj_gear_switch_penalty = 7 [default = 10.0];
+  optional double traj_steer_penalty = 8 [default = 100.0];
+  optional double traj_steer_change_penalty = 9 [default = 10.0];
+  // Grid a star for heuristic
+  optional double grid_a_star_xy_resolution = 15 [default = 0.1];
+  optional double node_radius = 16 [default = 0.5];
+  optional PiecewiseJerkSpeedOptimizerConfig s_curve_config = 17;
+  optional double traj_kappa_contraint_ratio = 10 [default = 0.7];
+}
+
+message IterativeAnchoringConfig {
+  // Ipopt configs
+  optional double interpolated_delta_s = 1 [default = 0.1];
+  optional int32 reanchoring_trails_num = 2 [default = 50];
+  optional double reanchoring_pos_stddev = 3 [default = 0.25];
+  optional double reanchoring_length_stddev = 4 [default = 1.0];
+  optional bool estimate_bound = 5 [default = false];
+  optional double default_bound = 6 [default = 2.0];
+  optional double vehicle_shortest_dimension = 7 [default = 1.04];
+  optional FemPosDeviationSmootherConfig fem_pos_deviation_smoother_config = 8;
+  optional double collision_decrease_ratio = 9 [default = 0.9];
+  // TODO(QiL, Jinyun): Merge following with overall config for open space
+  optional double max_forward_v = 10 [default = 2.0];
+  optional double max_reverse_v = 11 [default = 2.0];
+  optional double max_forward_acc = 12 [default = 3.0];
+  optional double max_reverse_acc = 13 [default = 2.0];
+  optional double max_acc_jerk = 14 [default = 4.0];
+  optional double delta_t = 15 [default = 0.2];
+  optional PiecewiseJerkSpeedOptimizerConfig s_curve_config = 16;
+}
+
+/*
