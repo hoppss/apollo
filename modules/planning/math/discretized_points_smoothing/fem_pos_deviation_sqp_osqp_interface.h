@@ -37,6 +37,7 @@ class FemPosDeviationSqpOsqpInterface {
   void set_ref_points(
       const std::vector<std::pair<double, double>>& ref_points) {
     ref_points_ = ref_points;
+    // TODO:  清空slack_ ??
   }
 
   void set_bounds_around_refs(const std::vector<double>& bounds_around_refs) {
@@ -60,7 +61,7 @@ class FemPosDeviationSqpOsqpInterface {
     weight_curvature_constraint_slack_var_ =
         weight_curvature_constraint_slack_var;
   }
-
+  // 最小半径，最大曲率
   void set_curvature_constraint(const double curvature_constraint) {
     curvature_constraint_ = curvature_constraint;
   }
@@ -81,12 +82,13 @@ class FemPosDeviationSqpOsqpInterface {
     sqp_pen_max_iter_ = sqp_pen_max_iter;
   }
 
+  // TODO:  ftol: 内部循环，固定某一松弛变量权重， f cost 收敛比率到某一值
   void set_sqp_ftol(const double sqp_ftol) { sqp_ftol_ = sqp_ftol; }
 
   void set_sqp_sub_max_iter(const int sqp_sub_max_iter) {
     sqp_sub_max_iter_ = sqp_sub_max_iter;
   }
-
+  // TODO: ctol： 外部循环， 曲率约束侵犯量， 松弛量？ 近似量 收敛到某一值
   void set_sqp_ctol(const double sqp_ctol) { sqp_ctol_ = sqp_ctol; }
 
   bool Solve();
@@ -130,6 +132,7 @@ class FemPosDeviationSqpOsqpInterface {
   double weight_fem_pos_deviation_ = 1.0e5;
   double weight_path_length_ = 1.0;
   double weight_ref_deviation_ = 1.0;
+  // 松弛变量也是决策变量
   double weight_curvature_constraint_slack_var_ = 1.0e5;
 
   // Settings of osqp
@@ -155,6 +158,7 @@ class FemPosDeviationSqpOsqpInterface {
   int num_of_constraints_ = 0;
 
   // Optimized_result
+  // TODO: 优化结果输出 slack
   std::vector<std::pair<double, double>> opt_xy_;
   std::vector<double> slack_;
   double average_interval_length_ = 0.0;
