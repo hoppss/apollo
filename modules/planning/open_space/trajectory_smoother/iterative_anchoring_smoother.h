@@ -114,3 +114,26 @@ class IterativeAnchoringSmoother {
 };
 }  // namespace planning
 }  // namespace apollo
+
+
+/*
+message PlannerOpenSpaceConfig {
+  // Open Space ROIConfig
+  optional ROIConfig roi_config = 1;
+  // Hybrid A Star Warm Start
+  optional WarmStartConfig warm_start_config = 2;
+  // Dual Variable Warm Start
+  optional DualVariableWarmStartConfig dual_variable_warm_start_config = 3;
+  // Distance Approach Configs
+  optional DistanceApproachConfig distance_approach_config = 4;
+  // Iterative Anchoring Configs
+  optional IterativeAnchoringConfig iterative_anchoring_smoother_config = 5;
+  // Trajectory PartitionConfig Configs
+  optional TrajectoryPartitionConfig trajectory_partition_config = 6;
+  optional float delta_t = 7 [default = 1.0];
+  optional double is_near_destination_threshold = 8 [default = 0.001];
+  optional bool enable_check_parallel_trajectory = 9 [default = false];
+  optional bool enable_linear_interpolation = 10 [default = false];
+  optional double is_near_destination_theta_threshold = 11 [default = 0.05];
+}
+*/

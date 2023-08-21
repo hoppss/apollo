@@ -66,14 +66,15 @@ bool IterativeAnchoringSmoother::Smooth(
   }
   const auto start_timestamp = std::chrono::system_clock::now();
 
-  // Set gear of the trajectory
+  // Set gear of the trajectory 是否向前 D档
   gear_ = CheckGear(xWS);
 
   // Set obstacle in form of linesegments
   std::vector<std::vector<LineSegment2d>> obstacles_linesegments_vec;
+  // 所有障碍物
   for (const auto& obstacle_vertices : obstacles_vertices_vec) {
     size_t vertices_num = obstacle_vertices.size();
-    std::vector<LineSegment2d> obstacle_linesegments;
+    std::vector<LineSegment2d> obstacle_linesegments;  // 单个障碍物
     for (size_t i = 0; i + 1 < vertices_num; ++i) {
       LineSegment2d line_segment =
           LineSegment2d(obstacle_vertices[i], obstacle_vertices[i + 1]);
@@ -83,7 +84,12 @@ bool IterativeAnchoringSmoother::Smooth(
   }
   obstacles_linesegments_vec_ = std::move(obstacles_linesegments_vec);
 
-  // Interpolate the traj
+  // Interpolate the traj， xWS 多少列多少个点，xWS（row-i, col-i), 每列[x, y, theta].transpose
+  // [
+  //    x0  x1
+  //    y0  y1
+  //    t0  t1
+  // ]
   DiscretizedPath warm_start_path;
   size_t xWS_size = xWS.cols();
   double accumulated_s = 0.0;
@@ -99,7 +105,7 @@ bool IterativeAnchoringSmoother::Smooth(
     warm_start_path.push_back(std::move(path_point));
     last_path_point = cur_path_point;
   }
-
+  // 0.1 meter
   const double interpolated_delta_s =
       planner_open_space_config_.iterative_anchoring_smoother_config()
           .interpolated_delta_s();
@@ -107,11 +113,14 @@ bool IterativeAnchoringSmoother::Smooth(
   double path_length = warm_start_path.Length();
   double delta_s = path_length / std::ceil(path_length / interpolated_delta_s);
   path_length += delta_s * 1.0e-6;
+  // 等长 均匀分部的初解
   for (double s = 0; s < path_length; s += delta_s) {
     const auto point2d = warm_start_path.Evaluate(s);
     interpolated_warm_start_point2ds.emplace_back(point2d.x(), point2d.y());
   }
 
+  // <4个点没法求解
+  // <6个点 没有增加起点的曲率约束？
   const size_t interpolated_size = interpolated_warm_start_point2ds.size();
   if (interpolated_size < 4) {
     AERROR << "interpolated_warm_start_path smaller than 4, can't enforce "
@@ -148,6 +157,7 @@ bool IterativeAnchoringSmoother::Smooth(
   input_colliding_point_index_.clear();
   if (!CheckCollisionAvoidance(interpolated_warm_start_path,
                                &input_colliding_point_index_)) {
+    // 把原始点 与障碍物 发生碰撞的 index 记录出来
     AERROR << "Interpolated input path points colliding with obstacle";
     // if (!ReAnchoring(colliding_point_index, &interpolated_warm_start_path)) {
     //   AERROR << "Fail to reanchor colliding input path points";
@@ -169,7 +179,7 @@ bool IterativeAnchoringSmoother::Smooth(
       path_smooth_end_timestamp - path_smooth_start_timestamp;
   ADEBUG << "iterative anchoring path smoother time: "
          << path_smooth_diff.count() * 1000.0 << " ms.";
-
+  // DL-IAPS 结束
   const auto speed_smooth_start_timestamp = std::chrono::system_clock::now();
 
   // Smooth speed to have smoothed v and a
@@ -279,12 +289,15 @@ bool IterativeAnchoringSmoother::ReAnchoring(
   }
 
   // TODO(Jinyun): move to confs
+  // 50
   const size_t reanchoring_trails_num = static_cast<size_t>(
       planner_open_space_config_.iterative_anchoring_smoother_config()
           .reanchoring_trails_num());
+  // 0.25 meter
   const double reanchoring_pos_stddev =
       planner_open_space_config_.iterative_anchoring_smoother_config()
           .reanchoring_pos_stddev();
+  // 1.0 meter
   const double reanchoring_length_stddev =
       planner_open_space_config_.iterative_anchoring_smoother_config()
           .reanchoring_length_stddev();
@@ -387,12 +400,15 @@ bool IterativeAnchoringSmoother::GenerateInitialBounds(
   CHECK_NOTNULL(initial_bounds);
   initial_bounds->clear();
 
+  // estimate_bound 默认false
   const bool estimate_bound =
       planner_open_space_config_.iterative_anchoring_smoother_config()
           .estimate_bound();
+  // default bound 2.0 meter
   const double default_bound =
       planner_open_space_config_.iterative_anchoring_smoother_config()
           .default_bound();
+  // vehicle_shortest_dimension TODO: 什么意思， min(车半宽, 后轴中心到车尾）
   const double vehicle_shortest_dimension =
       planner_open_space_config_.iterative_anchoring_smoother_config()
           .vehicle_shortest_dimension();
@@ -414,6 +430,7 @@ bool IterativeAnchoringSmoother::GenerateInitialBounds(
                      linesegment.DistanceTo({path_point.x(), path_point.y()}));
       }
     }
+    // fem bound 为正方形所以必须>=0
     min_bound -= vehicle_shortest_dimension;
     min_bound = min_bound < kEpislon ? 0.0 : min_bound;
     initial_bounds->push_back(min_bound);
@@ -485,6 +502,7 @@ bool IterativeAnchoringSmoother::SmoothPath(
   return true;
 }
 
+// 开始的时候 input_colliding_point_index_ 和 colliding_point_index 相同，且都为空 
 bool IterativeAnchoringSmoother::CheckCollisionAvoidance(
     const DiscretizedPath& path_points,
     std::vector<size_t>* colliding_point_index) {
@@ -535,7 +553,7 @@ bool IterativeAnchoringSmoother::CheckCollisionAvoidance(
   }
   return true;
 }
-
+// 调整碰撞点的bound， * collision_decrease_ratio（0.9）
 void IterativeAnchoringSmoother::AdjustPathBounds(
     const std::vector<size_t>& colliding_point_index,
     std::vector<double>* bounds) {
@@ -555,6 +573,7 @@ void IterativeAnchoringSmoother::AdjustPathBounds(
   bounds->at(1) = 0.0;
   bounds->at(bounds->size() - 1) = 0.0;
   bounds->at(bounds->size() - 2) = 0.0;
+  // 第三个点也不能动？
   if (enforce_initial_kappa_) {
     bounds->at(2) = 0.0;
   }
@@ -723,7 +742,7 @@ bool IterativeAnchoringSmoother::CombinePathAndSpeed(
     if (speed_point.s() > path_points.Length()) {
       break;
     }
-
+    // 根据时间，从speed profile 得到s， 再根据s 得到pose
     common::PathPoint path_point = path_points.Evaluate(speed_point.s());
 
     common::TrajectoryPoint trajectory_point;
@@ -750,7 +769,7 @@ void IterativeAnchoringSmoother::AdjustPathAndSpeedByGear(
         trajectory_point.mutable_path_point()->set_theta(
             NormalizeAngle(trajectory_point.path_point().theta() + M_PI));
         trajectory_point.mutable_path_point()->set_s(
-            -1.0 * trajectory_point.path_point().s());
+            -1.0 * trajectory_point.path_point().s()); // -s ???
         trajectory_point.mutable_path_point()->set_kappa(
             -1.0 * trajectory_point.path_point().kappa());
         // dkappa stays the same as direction of both kappa and s are reversed
@@ -758,45 +777,45 @@ void IterativeAnchoringSmoother::AdjustPathAndSpeedByGear(
         trajectory_point.set_a(-1.0 * trajectory_point.a());
       });
 }
+// 这部分代码应该没在用了
+// bool IterativeAnchoringSmoother::GenerateStopProfileFromPolynomial(
+//     const double init_acc, const double init_speed, const double stop_distance,
+//     SpeedData* smoothed_speeds) {
+//   static constexpr double kMaxT = 8.0;
+//   static constexpr double kUnitT = 0.2;
+//   for (double t = 2.0; t <= kMaxT; t += kUnitT) {
+//     QuinticPolynomialCurve1d curve(0.0, init_speed, init_acc, stop_distance,
+//                                    0.0, 0.0, t);
+//     if (!IsValidPolynomialProfile(curve)) {
+//       continue;
+//     }
+//     for (double curve_t = 0.0; curve_t <= t; curve_t += kUnitT) {
+//       const double curve_s = curve.Evaluate(0, curve_t);
+//       const double curve_v = curve.Evaluate(1, curve_t);
+//       const double curve_a = curve.Evaluate(2, curve_t);
+//       const double curve_da = curve.Evaluate(3, curve_t);
+//       smoothed_speeds->AppendSpeedPoint(curve_s, curve_t, curve_v, curve_a,
+//                                         curve_da);
+//     }
+//     return true;
+//   }
+//   AERROR << "GenerateStopProfileFromPolynomial fails.";
+//   return false;
+// }
 
-bool IterativeAnchoringSmoother::GenerateStopProfileFromPolynomial(
-    const double init_acc, const double init_speed, const double stop_distance,
-    SpeedData* smoothed_speeds) {
-  static constexpr double kMaxT = 8.0;
-  static constexpr double kUnitT = 0.2;
-  for (double t = 2.0; t <= kMaxT; t += kUnitT) {
-    QuinticPolynomialCurve1d curve(0.0, init_speed, init_acc, stop_distance,
-                                   0.0, 0.0, t);
-    if (!IsValidPolynomialProfile(curve)) {
-      continue;
-    }
-    for (double curve_t = 0.0; curve_t <= t; curve_t += kUnitT) {
-      const double curve_s = curve.Evaluate(0, curve_t);
-      const double curve_v = curve.Evaluate(1, curve_t);
-      const double curve_a = curve.Evaluate(2, curve_t);
-      const double curve_da = curve.Evaluate(3, curve_t);
-      smoothed_speeds->AppendSpeedPoint(curve_s, curve_t, curve_v, curve_a,
-                                        curve_da);
-    }
-    return true;
-  }
-  AERROR << "GenerateStopProfileFromPolynomial fails.";
-  return false;
-}
-
-bool IterativeAnchoringSmoother::IsValidPolynomialProfile(
-    const QuinticPolynomialCurve1d& curve) {
-  for (double evaluate_t = 0.1; evaluate_t <= curve.ParamLength();
-       evaluate_t += 0.2) {
-    const double v = curve.Evaluate(1, evaluate_t);
-    const double a = curve.Evaluate(2, evaluate_t);
-    static constexpr double kEpsilon = 1e-3;
-    if (v < -kEpsilon || a > 1.0) {
-      return false;
-    }
-  }
-  return true;
-}
+// bool IterativeAnchoringSmoother::IsValidPolynomialProfile(
+//     const QuinticPolynomialCurve1d& curve) {
+//   for (double evaluate_t = 0.1; evaluate_t <= curve.ParamLength();
+//        evaluate_t += 0.2) {
+//     const double v = curve.Evaluate(1, evaluate_t);
+//     const double a = curve.Evaluate(2, evaluate_t);
+//     static constexpr double kEpsilon = 1e-3;
+//     if (v < -kEpsilon || a > 1.0) {
+//       return false;
+//     }
+//   }
+//   return true;
+// }
 
 double IterativeAnchoringSmoother::CalcHeadings(
     const DiscretizedPath& path_points, const size_t index) {
