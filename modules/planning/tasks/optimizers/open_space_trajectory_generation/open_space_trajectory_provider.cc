@@ -135,6 +135,7 @@ Status OpenSpaceTrajectoryProvider::Process() {
   // Get open_space_info from current frame
   const auto& open_space_info = frame_->open_space_info();
 
+  // 背后开启规划线程， 暂时不考虑这么做
   if (FLAGS_enable_open_space_planner_thread) {
     ADEBUG << "Open space plan in multi-threads mode";
 
