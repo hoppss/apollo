@@ -100,7 +100,7 @@ Status OpenSpaceTrajectoryOptimizer::Plan(
   // Result container for warm start (initial velocity is assumed to be 0 for
   // now)
   HybridAStartResult result;
-
+  // hybrid astar search
   if (warm_start_->Plan(init_x, init_y, init_phi, end_pose[0], end_pose[1],
                         end_pose[2], XYbounds, obstacles_vertices_vec,
                         &result)) {
@@ -123,6 +123,7 @@ Status OpenSpaceTrajectoryOptimizer::Plan(
   Eigen::MatrixXd dual_n_result_ds;
 
   if (FLAGS_enable_parallel_trajectory_smoothing) {
+    // 根据gear 进行轨迹分割， 分段平滑
     std::vector<HybridAStartResult> partition_trajectories;
     if (!warm_start_->TrajectoryPartition(result, &partition_trajectories)) {
       return Status(ErrorCode::PLANNING_ERROR, "Hybrid Astar partition failed");

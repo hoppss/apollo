@@ -38,7 +38,11 @@
 #include "modules/planning/open_space/trajectory_smoother/dual_variable_warm_start_problem.h"
 #include "modules/planning/open_space/trajectory_smoother/iterative_anchoring_smoother.h"
 #include "modules/planning/proto/open_space_task_config.pb.h"
-
+/***
+ * HybridAstar search
+ * path smooth, trajectory plan
+ * 
+*/
 namespace apollo {
 namespace planning {
 class OpenSpaceTrajectoryOptimizer {
@@ -63,7 +67,7 @@ class OpenSpaceTrajectoryOptimizer {
     stitching_trajectory->clear();
     *stitching_trajectory = stitching_trajectory_;
   }
-
+  // 输出
   void GetOptimizedTrajectory(DiscretizedTrajectory* optimized_trajectory) {
     optimized_trajectory->clear();
     *optimized_trajectory = optimized_trajectory_;
@@ -168,7 +172,7 @@ class OpenSpaceTrajectoryOptimizer {
   std::unique_ptr<IterativeAnchoringSmoother> iterative_anchoring_smoother_;
 
   std::vector<common::TrajectoryPoint> stitching_trajectory_;
-  DiscretizedTrajectory optimized_trajectory_;
+  DiscretizedTrajectory optimized_trajectory_;   // result 输出
 
   apollo::planning_internal::OpenSpaceDebug open_space_debug_;
 };

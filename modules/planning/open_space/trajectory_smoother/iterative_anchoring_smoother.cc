@@ -66,7 +66,7 @@ bool IterativeAnchoringSmoother::Smooth(
   }
   const auto start_timestamp = std::chrono::system_clock::now();
 
-  // Set gear of the trajectory 是否向前 D档
+  // Set gear of the trajectory 是否向前 D档, 输入前是根据方向分段了
   gear_ = CheckGear(xWS);
 
   // Set obstacle in form of linesegments
