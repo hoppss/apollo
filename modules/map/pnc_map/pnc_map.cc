@@ -42,6 +42,7 @@ DEFINE_double(
     look_forward_long_distance, 250,
     "look forward this distance when creating reference line from routing");
 
+// https://blog.csdn.net/lzw0107/article/details/107814610
 namespace apollo {
 namespace hdmap {
 
@@ -69,8 +70,8 @@ LaneWaypoint PncMap::ToLaneWaypoint(
 }
 
 double PncMap::LookForwardDistance(double velocity) {
-  auto forward_distance = velocity * FLAGS_look_forward_time_sec;
-
+  auto forward_distance = velocity * FLAGS_look_forward_time_sec;  // 8s
+  // short 180m, long 250m
   return forward_distance > FLAGS_look_forward_short_distance
              ? FLAGS_look_forward_long_distance
              : FLAGS_look_forward_short_distance;
@@ -133,14 +134,16 @@ std::vector<routing::LaneWaypoint> PncMap::FutureRouteWaypoints() const {
 void PncMap::UpdateRoutingRange(int adc_index) {
   // Track routing range.
   range_lane_ids_.clear();
+  // 保证从0开始迭代
   range_start_ = std::max(0, adc_index - 1);
   range_end_ = range_start_;
+  // 迭代所有的lane segments
   while (range_end_ < static_cast<int>(route_indices_.size())) {
     const auto &lane_id = route_indices_[range_end_].segment.lane->id().id();
     if (range_lane_ids_.count(lane_id) != 0) {
       break;
     }
-    range_lane_ids_.insert(lane_id);
+    range_lane_ids_.insert(lane_id);  // range_lane_ids 特点是id 不重复
     ++range_end_;
   }
 }
@@ -155,6 +158,7 @@ bool PncMap::UpdateVehicleState(const VehicleState &vehicle_state) {
        FLAGS_replan_lateral_distance_threshold +
            FLAGS_replan_longitudinal_distance_threshold)) {
     // Position is reset, but not replan.
+    // lat 0.5m, lon 2.5m replan dist threshold
     next_routing_waypoint_index_ = 0;
     adc_route_index_ = -1;
     stop_for_destination_ = false;
@@ -177,6 +181,7 @@ bool PncMap::UpdateVehicleState(const VehicleState &vehicle_state) {
   // Track how many routing request waypoints the adc have passed.
   UpdateNextRoutingWaypointIndex(route_index);
   adc_route_index_ = route_index;
+  // 更新range_ids_, range_start_, range_end_
   UpdateRoutingRange(adc_route_index_);
 
   if (routing_waypoint_index_.empty()) {
@@ -215,6 +220,7 @@ bool PncMap::UpdateRoutingResponse(const routing::RoutingResponse &routing) {
       for (int lane_index = 0; lane_index < passage.segment_size();
            ++lane_index) {
         all_lane_ids_.insert(passage.segment(lane_index).id());
+        // 末尾 直接构造新元素，因为是无参构造函数，所以这里是（）， 下面行调用的是back() 相当于引用， 进行赋值
         route_indices_.emplace_back();
         route_indices_.back().segment =
             ToLaneSegment(passage.segment(lane_index));
@@ -226,6 +232,11 @@ bool PncMap::UpdateRoutingResponse(const routing::RoutingResponse &routing) {
       }
     }
   }
+  /**
+   * https://blog.csdn.net/lzw0107/article/details/107814610
+   * 这里是用road segment 来划分的， section 本来就是对道路切割的
+   * 不同的section (road segment)， 包含的passage 包含的passenge 数据是完整的， 不仅限于该section 内部
+  */
 
   range_start_ = 0;
   range_end_ = 0;
@@ -281,6 +292,7 @@ bool PncMap::ValidateRouting(const RoutingResponse &routing) {
   return true;
 }
 
+// sl 所在的segment  在 route_indices_ 中的索引
 int PncMap::SearchForwardWaypointIndex(int start,
                                        const LaneWaypoint &waypoint) const {
   int i = std::max(start, 0);
@@ -315,6 +327,7 @@ int PncMap::NextWaypointIndex(int index) const {
 int PncMap::GetWaypointIndex(const LaneWaypoint &waypoint) const {
   int forward_index = SearchForwardWaypointIndex(adc_route_index_, waypoint);
   if (forward_index >= static_cast<int>(route_indices_.size())) {
+    // 没找到
     return SearchBackwardWaypointIndex(adc_route_index_, waypoint);
   }
   if (forward_index == adc_route_index_ ||
@@ -345,7 +358,7 @@ bool PncMap::PassageToSegments(routing::Passage passage,
   }
   return !segments->empty();
 }
-
+// RoadSegment 相当于 section， 包含多个passage
 std::vector<int> PncMap::GetNeighborPassages(const routing::RoadSegment &road,
                                              int start_passage) const {
   CHECK_GE(start_passage, 0);
@@ -405,8 +418,8 @@ std::vector<int> PncMap::GetNeighborPassages(const routing::RoadSegment &road,
 bool PncMap::GetRouteSegments(const VehicleState &vehicle_state,
                               std::list<RouteSegments> *const route_segments) {
   double look_forward_distance =
-      LookForwardDistance(vehicle_state.linear_velocity());
-  double look_backward_distance = FLAGS_look_backward_distance;
+      LookForwardDistance(vehicle_state.linear_velocity());     // 180-250
+  double look_backward_distance = FLAGS_look_backward_distance; // 50m
   return GetRouteSegments(vehicle_state, look_backward_distance,
                           look_forward_distance, route_segments);
 }

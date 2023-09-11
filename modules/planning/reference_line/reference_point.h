@@ -29,6 +29,10 @@
 namespace apollo {
 namespace planning {
 
+// vec (x,y)
+// MapPathPoint   (x,y,heading, lanewaypoint)
+// ReferencePoint (x,y,heading, kappa, dkappa_)
+//                (-MapPathPoint, kappa, dkappa-)
 class ReferencePoint : public hdmap::MapPathPoint {
  public:
   ReferencePoint() = default;

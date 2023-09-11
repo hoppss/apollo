@@ -46,7 +46,9 @@ using std::placeholders::_1;
 namespace {
 
 const double kSampleDistance = 0.25;
-
+// 根据两个点构造 LaneSegent 对象
+// MapPathPoint 中laneInfo.id
+// lane 上的wp1.s, wp2.s，进一步切割
 bool FindLaneSegment(const MapPathPoint& p1, const MapPathPoint& p2,
                      LaneSegment* const lane_segment) {
   for (const auto& wp1 : p1.lane_waypoints()) {
@@ -75,6 +77,7 @@ LaneBoundaryType::Type LeftBoundaryType(const LaneWaypoint& waypoint) {
   }
   for (const auto& type :
        waypoint.lane->lane().left_boundary().boundary_type()) {
+    // TODO： 不找s 最近的吗
     if (type.s() <= waypoint.s) {
       if (type.types_size() > 0) {
         return type.types(0);
@@ -366,13 +369,14 @@ void Path::InitPoints() {
   segments_.reserve(num_points_);
   unit_directions_.clear();
   unit_directions_.reserve(num_points_);
-  double s = 0.0;
+  double s = 0.0;  // 从0开始积累
   for (int i = 0; i < num_points_; ++i) {
     accumulated_s_.push_back(s);
     Vec2d heading;
     if (i + 1 >= num_points_) {
       heading = path_points_[i] - path_points_[i - 1];
     } else {
+      // 高精地图由点构造line_segment
       segments_.emplace_back(path_points_[i], path_points_[i + 1]);
       heading = path_points_[i + 1] - path_points_[i];
       // TODO(All): use heading.length when all adjacent lanes are guarantee to

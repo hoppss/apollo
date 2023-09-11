@@ -35,6 +35,7 @@ ReferencePoint::ReferencePoint(const MapPathPoint& map_path_point,
                                const double kappa, const double dkappa)
     : hdmap::MapPathPoint(map_path_point), kappa_(kappa), dkappa_(dkappa) {}
 
+// 和PathPoint 差了一个s值
 common::PathPoint ReferencePoint::ToPathPoint(double s) const {
   return common::util::PointFactory::ToPathPoint(x(), y(), 0.0, s, heading(),
                                                  kappa_, dkappa_);
@@ -52,12 +53,13 @@ std::string ReferencePoint::DebugString() const {
 void ReferencePoint::RemoveDuplicates(std::vector<ReferencePoint>* points) {
   CHECK_NOTNULL(points);
   int count = 0;
-  const double limit = kDuplicatedPointsEpsilon * kDuplicatedPointsEpsilon;
+  const double limit = kDuplicatedPointsEpsilon * kDuplicatedPointsEpsilon;  // 1e-6
   for (size_t i = 0; i < points->size(); ++i) {
     if (count == 0 ||
         (*points)[i].DistanceSquareTo((*points)[count - 1]) > limit) {
       (*points)[count++] = (*points)[i];
     } else {
+      // 存在虚拟数据? 某个点在多个车道上
       (*points)[count - 1].add_lane_waypoints((*points)[i].lane_waypoints());
     }
   }

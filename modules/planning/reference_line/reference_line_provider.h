@@ -82,7 +82,7 @@ class ReferenceLineProvider {
                          std::list<hdmap::RouteSegments>* segments);
 
   double LastTimeDelay();
-
+  // 获得终点，途经点等
   std::vector<routing::LaneWaypoint> FutureRouteWaypoints();
 
   bool UpdatedReferenceLine() { return is_reference_line_updated_.load(); }
@@ -105,6 +105,7 @@ class ReferenceLineProvider {
       const std::list<ReferenceLine>& reference_lines,
       const std::list<hdmap::RouteSegments>& route_segments);
 
+  // 多线程接口
   void GenerateThread();
   void IsValidReferenceLine();
   void PrioritzeChangeLane(std::list<hdmap::RouteSegments>* route_segments);
@@ -163,7 +164,7 @@ class ReferenceLineProvider {
   ReferenceLineSmootherConfig smoother_config_;
 
   std::mutex pnc_map_mutex_;
-  std::unique_ptr<hdmap::PncMap> pnc_map_;
+  std::unique_ptr<hdmap::PncMap> pnc_map_;  // pnc map 是在reference line provider 中使用
 
   // Used in Navigation mode
   std::shared_ptr<relative_map::MapMsg> relative_map_;
@@ -172,14 +173,18 @@ class ReferenceLineProvider {
   common::VehicleState vehicle_state_;
 
   std::mutex routing_mutex_;
+  // 输入， road segment 层面划分
   routing::RoutingResponse routing_;
   bool has_routing_ = false;
 
+  // 生成的参考线结果
   std::mutex reference_lines_mutex_;
   std::list<ReferenceLine> reference_lines_;
   std::list<hdmap::RouteSegments> route_segments_;
   double last_calculation_time_ = 0.0;
 
+  //  历史数据是为了prefix extend ??
+  // 还是stitch ???
   std::queue<std::list<ReferenceLine>> reference_line_history_;
   std::queue<std::list<hdmap::RouteSegments>> route_segments_history_;
 

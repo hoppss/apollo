@@ -34,6 +34,7 @@ namespace hdmap {
 // class LaneInfoConstPtr;
 // class OverlapInfoConstPtr;
 
+// 绑定了laneinfo  ,id, 对应的sl 信息， s-tracking 坐标系, 中心线，车道线，路沿等
 struct LaneWaypoint {
   LaneWaypoint() = default;
   LaneWaypoint(LaneInfoConstPtr lane, const double s)
@@ -42,7 +43,7 @@ struct LaneWaypoint {
       : lane(CHECK_NOTNULL(lane)), s(s), l(l) {}
   LaneInfoConstPtr lane = nullptr;
   double s = 0.0;
-  double l = 0.0;
+  double l = 0.0;  // TODO:  s,l 怎么用, 相对还是绝对
 
   std::string DebugString() const;
 };
@@ -69,6 +70,7 @@ LaneWaypoint LeftNeighborWaypoint(const LaneWaypoint& waypoint);
  */
 LaneWaypoint RightNeighborWaypoint(const LaneWaypoint& waypoint);
 
+// LaneSegment 没有id， 只有LaneInfo 指针
 struct LaneSegment {
   LaneSegment() = default;
   LaneSegment(LaneInfoConstPtr lane, const double start_s, const double end_s)
@@ -76,7 +78,7 @@ struct LaneSegment {
   LaneInfoConstPtr lane = nullptr;
   double start_s = 0.0;
   double end_s = 0.0;
-  double Length() const { return end_s - start_s; }
+  double Length() const { return end_s - start_s; }  // lane 里面的s 是绝对值， segment s 是相对值
 
   /**
    * Join neighboring lane segments if they have the same lane id
@@ -98,6 +100,8 @@ struct PathOverlap {
   std::string DebugString() const;
 };
 
+// (x,y) -> (x,y,heading)
+// 这个点所属车道，可能包含了多个车道
 class MapPathPoint : public common::math::Vec2d {
  public:
   MapPathPoint() = default;
@@ -124,6 +128,7 @@ class MapPathPoint : public common::math::Vec2d {
   void add_lane_waypoint(LaneWaypoint lane_waypoint) {
     lane_waypoints_.emplace_back(std::move(lane_waypoint));
   }
+  //TODO: 交叉路段，重复的路段，存在虚拟数据 ???
   void add_lane_waypoints(const std::vector<LaneWaypoint>& lane_waypoints) {
     lane_waypoints_.insert(lane_waypoints_.end(), lane_waypoints.begin(),
                            lane_waypoints.end());
@@ -144,7 +149,7 @@ class MapPathPoint : public common::math::Vec2d {
 
  protected:
   double heading_ = 0.0;
-  std::vector<LaneWaypoint> lane_waypoints_;
+  std::vector<LaneWaypoint> lane_waypoints_;  // 一个点可能关联了多个车道
 };
 
 class Path;
@@ -203,6 +208,7 @@ class PathApproximation {
   std::vector<int> sampled_max_original_projections_to_left_;
 };
 
+// TODO:  interpolated -> smooth  用途
 class InterpolatedIndex {
  public:
   InterpolatedIndex(int id, double offset) : id(id), offset(offset) {}
@@ -210,11 +216,14 @@ class InterpolatedIndex {
   double offset = 0.0;
 };
 
+// TODO: 重要，单一车道以及绑定的所有信息
 class Path {
  public:
   Path() = default;
   explicit Path(const std::vector<MapPathPoint>& path_points);
   explicit Path(std::vector<MapPathPoint>&& path_points);
+
+  // 从lane segments 构造path
   explicit Path(std::vector<LaneSegment>&& path_points);
   explicit Path(const std::vector<LaneSegment>& path_points);
 
@@ -350,6 +359,7 @@ class Path {
  protected:
   int num_points_ = 0;
   int num_segments_ = 0;
+  // Init 基础数据元素，非常重要
   std::vector<MapPathPoint> path_points_;
   std::vector<LaneSegment> lane_segments_;
   std::vector<double> lane_accumulated_s_;

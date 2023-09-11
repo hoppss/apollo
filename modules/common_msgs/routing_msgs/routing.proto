@@ -18,6 +18,7 @@ message LaneWaypoint {
   optional double heading = 4;
 }
 
+// LaneSegment 是一段直线吗
 message LaneSegment {
   optional string id = 1;
   optional double start_s = 2;
@@ -76,10 +77,11 @@ enum ChangeLaneType {
 
 message Passage {
   repeated LaneSegment segment = 1;
-  optional bool can_exit = 2;
+  optional bool can_exit = 2;  // TODO:
   optional ChangeLaneType change_lane_type = 3 [default = FORWARD];
 }
 
+//TODO： road　segment 和 lane segment 分割有区别吗？ 
 message RoadSegment {
   optional string id = 1;
   repeated Passage passage = 2;
@@ -87,8 +89,9 @@ message RoadSegment {
 
 message RoutingResponse {
   optional apollo.common.Header header = 1;
-  repeated RoadSegment road = 2;
-  optional Measurement measurement = 3;
+  // 从road segment 层面返回
+  repeated RoadSegment road = 2;   // TODO: 返回是road segment[] -> passage[][] -> laneSegment[][][]
+  optional Measurement measurement = 3;  // 这里的distance 区别是？
   optional RoutingRequest routing_request = 4;
 
   // the map version which is used to build road graph

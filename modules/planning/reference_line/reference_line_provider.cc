@@ -91,10 +91,12 @@ bool ReferenceLineProvider::UpdateRoutingResponse(
     const routing::RoutingResponse &routing) {
   std::lock_guard<std::mutex> routing_lock(routing_mutex_);
   routing_ = routing;
+  // routing_ -> ReferenceLineProvider -> pnc_map
   has_routing_ = true;
   return true;
 }
 
+// 终点或者 剩余途经点
 std::vector<routing::LaneWaypoint>
 ReferenceLineProvider::FutureRouteWaypoints() {
   if (!FLAGS_use_navigation_mode) {
@@ -133,7 +135,7 @@ void ReferenceLineProvider::Stop() {
     task_future_.get();
   }
 }
-
+// 先create， 后update，
 void ReferenceLineProvider::UpdateReferenceLine(
     const std::list<ReferenceLine> &reference_lines,
     const std::list<hdmap::RouteSegments> &route_segments) {
@@ -158,6 +160,7 @@ void ReferenceLineProvider::UpdateReferenceLine(
          internal_iter != reference_lines_.end() &&
          internal_segment_iter != route_segments_.end();
          ++iter, ++segment_iter, ++internal_iter, ++internal_segment_iter) {
+      // TODO: 什么特殊情况
       if (iter->reference_points().empty()) {
         *internal_iter = *iter;
         *internal_segment_iter = *segment_iter;
@@ -176,7 +179,7 @@ void ReferenceLineProvider::UpdateReferenceLine(
       *internal_segment_iter = *segment_iter;
     }
   }
-  // update history
+  // update history, circle buffer
   reference_line_history_.push(reference_lines_);
   route_segments_history_.push(route_segments_);
   static constexpr int kMaxHistoryNum = 3;
@@ -195,6 +198,7 @@ void ReferenceLineProvider::GenerateThread() {
       AERROR << "Routing is not ready.";
       continue;
     }
+    // 新数据， 后面更新updateReferenceLine
     std::list<ReferenceLine> reference_lines;
     std::list<hdmap::RouteSegments> segments;
     if (!CreateReferenceLine(&reference_lines, &segments)) {
@@ -239,6 +243,7 @@ bool ReferenceLineProvider::GetReferenceLines(
 
   if (FLAGS_enable_reference_line_provider_thread) {
     std::lock_guard<std::mutex> lock(reference_lines_mutex_);
+    // 多线程直接取数据
     if (!reference_lines_.empty()) {
       reference_lines->assign(reference_lines_.begin(), reference_lines_.end());
       segments->assign(route_segments_.begin(), route_segments_.end());
@@ -254,6 +259,7 @@ bool ReferenceLineProvider::GetReferenceLines(
     }
   }
 
+  // 生成失败 fallback
   AWARN << "Reference line is NOT ready.";
   if (reference_line_history_.empty()) {
     AERROR << "Failed to use reference line latest history";
@@ -268,6 +274,7 @@ bool ReferenceLineProvider::GetReferenceLines(
   return true;
 }
 
+// 把当前参考线排在list最前面的
 void ReferenceLineProvider::PrioritzeChangeLane(
     std::list<hdmap::RouteSegments> *route_segments) {
   CHECK_NOTNULL(route_segments);
@@ -529,6 +536,7 @@ bool ReferenceLineProvider::GetNearestWayPointFromNavigationPath(
   return waypoint->lane != nullptr;
 }
 
+// segments 对应的是多个passage, == 多个参考线
 bool ReferenceLineProvider::CreateRouteSegments(
     const common::VehicleState &vehicle_state,
     std::list<hdmap::RouteSegments> *segments) {
@@ -580,6 +588,7 @@ bool ReferenceLineProvider::CreateReferenceLine(
     AERROR << "Failed to create reference line from routing";
     return false;
   }
+  // 不需要拼接，或者prefix
   if (is_new_routing || !FLAGS_enable_reference_line_stitching) {
     for (auto iter = segments->begin(); iter != segments->end();) {
       reference_lines->emplace_back();
@@ -613,14 +622,18 @@ bool ReferenceLineProvider::CreateReferenceLine(
   }
   return true;
 }
-
+// segments 本次segement 输入
+// reference_line 要生成的参考线
 bool ReferenceLineProvider::ExtendReferenceLine(const VehicleState &state,
                                                 RouteSegments *segments,
                                                 ReferenceLine *reference_line) {
+  // CASE A
+  // https://blog.csdn.net/lzw0107/article/details/108119832?spm=1001.2101.3001.6650.5&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7EBlogCommendFromBaidu%7ERate-5-108119832-blog-129323751.235%5Ev38%5Epc_relevant_default_base&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7EBlogCommendFromBaidu%7ERate-5-108119832-blog-129323751.235%5Ev38%5Epc_relevant_default_base&utm_relevant_index=6
   RouteSegments segment_properties;
   segment_properties.SetProperties(*segments);
   auto prev_segment = route_segments_.begin();
   auto prev_ref = reference_lines_.begin();
+  // 用上一次的参考线和这一次的segment 进行比较，观察是否连续
   while (prev_segment != route_segments_.end()) {
     if (prev_segment->IsConnectedSegment(*segments)) {
       break;
@@ -635,6 +648,7 @@ bool ReferenceLineProvider::ExtendReferenceLine(const VehicleState &state,
     }
     return SmoothRouteSegment(*segments, reference_line);
   }
+  // CASE　Ｂ
   common::SLPoint sl_point;
   Vec2d vec2d(state.x(), state.y());
   LaneWaypoint waypoint;
@@ -647,6 +661,7 @@ bool ReferenceLineProvider::ExtendReferenceLine(const VehicleState &state,
   const double remain_s = prev_segment_length - sl_point.s();
   const double look_forward_required_distance =
       PncMap::LookForwardDistance(state.linear_velocity());
+  // 如果上一次参考线还有足够长， 直接复用，都是全局坐标系
   if (remain_s > look_forward_required_distance) {
     *segments = *prev_segment;
     segments->SetProperties(segment_properties);
@@ -656,11 +671,12 @@ bool ReferenceLineProvider::ExtendReferenceLine(const VehicleState &state,
            << " and no need to extend";
     return true;
   }
+  // CASE C
   double future_start_s =
       std::max(sl_point.s(), prev_segment_length -
-                                 FLAGS_reference_line_stitch_overlap_distance);
+                                 FLAGS_reference_line_stitch_overlap_distance);  // 20m
   double future_end_s =
-      prev_segment_length + FLAGS_look_forward_extend_distance;
+      prev_segment_length + FLAGS_look_forward_extend_distance;  // 50m
   RouteSegments shifted_segments;
   std::unique_lock<std::mutex> lock(pnc_map_mutex_);
   if (!pnc_map_->ExtendSegments(*prev_segment, future_start_s, future_end_s,
@@ -683,6 +699,7 @@ bool ReferenceLineProvider::ExtendReferenceLine(const VehicleState &state,
     AWARN << "Failed to smooth forward shifted reference line";
     return SmoothRouteSegment(*segments, reference_line);
   }
+  // 新计算的参考线与上一阵的 参考线拼接
   if (!reference_line->Stitch(*prev_ref)) {
     AWARN << "Failed to stitch reference line";
     return SmoothRouteSegment(*segments, reference_line);
@@ -706,6 +723,7 @@ bool ReferenceLineProvider::Shrink(const common::SLPoint &sl,
                                    RouteSegments *segments) {
   static constexpr double kMaxHeadingDiff = M_PI * 5.0 / 6.0;
   // shrink reference line
+  // 参考线第一个点，s=0
   double new_backward_distance = sl.s();
   double new_forward_distance = reference_line->Length() - sl.s();
   bool need_shrink = false;
@@ -716,6 +734,7 @@ bool ReferenceLineProvider::Shrink(const common::SLPoint &sl,
     new_backward_distance = FLAGS_look_backward_distance;
     need_shrink = true;
   }
+  // u-turn 等向前截断
   // check heading
   const auto index = reference_line->GetNearestReferenceIndex(sl.s());
   const auto &ref_points = reference_line->reference_points();
@@ -761,6 +780,7 @@ bool ReferenceLineProvider::IsReferenceLineSmoothValid(
     }
 
     const double diff = std::fabs(sl_new.l());
+    // diff 5m
     if (diff > FLAGS_smoothed_reference_line_max_diff) {
       AERROR << "Fail to provide reference line because too large diff "
                 "between smoothed and raw reference lines. diff: "
@@ -842,7 +862,7 @@ AnchorPoint ReferenceLineProvider::GetAnchorPoint(
   anchor.path_point = ref_point.ToPathPoint(s);
   anchor.lateral_bound = common::math::Clamp(
       effective_width, smoother_config_.min_lateral_boundary_bound(),
-      smoother_config_.max_lateral_boundary_bound());
+      smoother_config_.max_lateral_boundary_bound());   // min 0.1, max 0.5
   return anchor;
 }
 
@@ -850,7 +870,8 @@ void ReferenceLineProvider::GetAnchorPoints(
     const ReferenceLine &reference_line,
     std::vector<AnchorPoint> *anchor_points) const {
   CHECK_NOTNULL(anchor_points);
-  const double interval = smoother_config_.max_constraint_interval();
+  const double interval = smoother_config_.max_constraint_interval();  // 0.25m
+  // 最少2个点
   int num_of_anchors =
       std::max(2, static_cast<int>(reference_line.Length() / interval + 0.5));
   std::vector<double> anchor_s;
@@ -868,6 +889,7 @@ void ReferenceLineProvider::GetAnchorPoints(
   anchor_points->back().enforced = true;
 }
 
+// routing passage -> RouteSegments = LaneSegment[] -> Hdmap::Path -> reference Line 一个东西
 bool ReferenceLineProvider::SmoothRouteSegment(const RouteSegments &segments,
                                                ReferenceLine *reference_line) {
   hdmap::Path path(segments);
@@ -885,22 +907,26 @@ bool ReferenceLineProvider::SmoothPrefixedReferenceLine(
   std::vector<AnchorPoint> anchor_points;
   GetAnchorPoints(raw_ref, &anchor_points);
   // modify anchor points based on prefix_ref
+  // 新的参考线上的点，投影到上一阵参考线
   for (auto &point : anchor_points) {
     common::SLPoint sl_point;
     if (!prefix_ref.XYToSL(point.path_point, &sl_point)) {
       continue;
     }
+    // < 0 不应该除非后退， s > length 应该有可能，这种情况下属于尾端新增的点??? 这种点的约束是不是应该放开
     if (sl_point.s() < 0 || sl_point.s() > prefix_ref.Length()) {
       continue;
     }
     auto prefix_ref_point = prefix_ref.GetNearestReferencePoint(sl_point.s());
-    point.path_point.set_x(prefix_ref_point.x());
+    point.path_point.set_x(prefix_ref_point.x());   //  ？？？ 这里点坐标都用上一阵的平滑结果
     point.path_point.set_y(prefix_ref_point.y());
     point.path_point.set_z(0.0);
     point.path_point.set_theta(prefix_ref_point.heading());
+    // bound 设置的很小， 参考线bound 限制
     point.longitudinal_bound = 1e-6;
     point.lateral_bound = 1e-6;
     point.enforced = true;
+    // 找到第一个点！！！ 既退出
     break;
   }
 

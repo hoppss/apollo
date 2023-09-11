@@ -45,8 +45,13 @@ class ReferenceLine {
       : reference_points_(begin, end),
         map_path_(std::move(std::vector<hdmap::MapPathPoint>(begin, end))) {}
   explicit ReferenceLine(const std::vector<ReferencePoint>& reference_points);
-  explicit ReferenceLine(const hdmap::Path& hdmap_path);
 
+  // 由高精地图构造hdmap::Path
+  explicit ReferenceLine(const hdmap::Path& hdmap_path);
+  // 每次拼接的时候，会尽可能多的采用自身的参考线
+  // https://blog.csdn.net/lzw0107/article/details/108119832?spm=1001.2101.3001.6650.5&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7EBlogCommendFromBaidu%7ERate-5-108119832-blog-129323751.235%5Ev38%5Epc_relevant_default_base&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7EBlogCommendFromBaidu%7ERate-5-108119832-blog-129323751.235%5Ev38%5Epc_relevant_default_base&utm_relevant_index=6
+  // https://github.com/YannZyl/Apollo-Note/blob/master/docs/planning/reference_line_provider.md
+  // https://zhuanlan.zhihu.com/p/388586935?utm_id=0     [王方浩-知乎]
   /** Stitch current reference line with the other reference line
    * The stitching strategy is to use current reference points as much as
    * possible. The following two examples show two successful stitch cases.
@@ -158,7 +163,7 @@ class ReferenceLine {
    * check whether the remaining space on the road surface is larger than the
    * provided gap space.
    * @param boxed the provided box
-   * @param gap check the gap of the space
+   * @param gap check the gap of the space 路宽
    * @return true if the box blocks the road.
    */
   bool IsBlockRoad(const common::math::Box2d& box2d, double gap) const;
@@ -224,8 +229,10 @@ class ReferenceLine {
   /**
    * This speed limit overrides the lane speed limit
    **/
+  // 重要数据，参考线离散点， 限速点， 以及hdmap::Path 这里绑定了hdmap 这条lane 的所有数据 lane, road, overlaps
   std::vector<SpeedLimit> speed_limit_;
   std::vector<ReferencePoint> reference_points_;
+  // 构造reference line  的原始数据 from hdmap
   hdmap::Path map_path_;
   uint32_t priority_ = 0;
 };

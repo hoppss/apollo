@@ -24,9 +24,9 @@
 #include <string>
 #include <vector>
 
+#include "modules/common/vehicle_state/proto/vehicle_state.pb.h"
 #include "modules/common_msgs/basic_msgs/pnc_point.pb.h"
 #include "modules/common_msgs/routing_msgs/routing.pb.h"
-#include "modules/common/vehicle_state/proto/vehicle_state.pb.h"
 
 #include "modules/map/hdmap/hdmap.h"
 #include "modules/map/pnc_map/path.h"
@@ -45,6 +45,8 @@ namespace hdmap {
  * This class contains the original data that can be used to generate
  * hdmap::Path.
  **/
+// RouteSegments  ==  passage 同路， 对应的是一条参考线 hadmap::Path, 以及一条reference line
+// passage 包含一些特定信息，比如末端点，can_exit_信息
 class RouteSegments : public std::vector<LaneSegment> {
  public:
   /**
@@ -136,6 +138,7 @@ class RouteSegments : public std::vector<LaneSegment> {
    *
    * @return false if these two reference line cannot be stitched
    */
+  // stitch 指的是什么东西  ???
   bool Stitch(const RouteSegments &other);
 
   bool Shrink(const common::math::Vec2d &point, const double look_backward,

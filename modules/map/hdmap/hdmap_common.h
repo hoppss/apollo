@@ -138,6 +138,7 @@ using RoadRoiPtr = std::shared_ptr<RoadRoi>;
 using PNCJunctionInfoConstPtr = std::shared_ptr<const PNCJunctionInfo>;
 using RSUInfoConstPtr = std::shared_ptr<const RSUInfo>;
 
+// lane 有关的信息， 承接高精地图lane 信息
 class LaneInfo {
  public:
   explicit LaneInfo(const Lane &lane);
@@ -189,6 +190,7 @@ class LaneInfo {
     return pnc_junctions_;
   }
   double total_length() const { return total_length_; }
+  // <s, width>
   using SampledWidth = std::pair<double, double>;
   const std::vector<SampledWidth> &sampled_left_width() const {
     return sampled_left_width_;

@@ -10,11 +10,13 @@ message Polygon {
 }
 
 // Straight line segment.
+// 0 最小元素 线段
 message LineSegment {
   repeated apollo.common.PointENU point = 1;
 }
 
 // Generalization of a line.
+// 1 每个车道中心线描述， 描述起点位置朝向， s值，这样就知道终点
 message CurveSegment {
   oneof curve_type {
     LineSegment line_segment = 1;
@@ -26,6 +28,7 @@ message CurveSegment {
 }
 
 // An object similar to a line but that need not be straight.
+// 2 车道中心线描述  s-tracking 坐标系
 message Curve {
   repeated CurveSegment segment = 1;
 }

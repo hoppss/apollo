@@ -421,6 +421,8 @@ bool IterativeAnchoringSmoother::GenerateInitialBounds(
   }
 
   // TODO(Jinyun): refine obstacle formulation and speed it up
+  // 针对每个点， 预估一个bound，
+  // 遍历所有障碍物， 找到最近距离， 用来做initial bound
   for (const auto& path_point : path_points) {
     double min_bound = std::numeric_limits<double>::infinity();
     for (const auto& obstacle_linesegments : obstacles_linesegments_vec_) {
@@ -470,6 +472,7 @@ bool IterativeAnchoringSmoother::SmoothPath(
 
     std::vector<double> opt_x;
     std::vector<double> opt_y;
+    // 每次平滑是在raw point 上做的
     if (!fem_pos_smoother.Solve(raw_point2d, flexible_bounds, &opt_x, &opt_y)) {
       AERROR << "Smoothing path fails";
       return false;

@@ -48,6 +48,7 @@ using apollo::common::math::Vec2d;
 using apollo::common::util::DistanceXY;
 using apollo::hdmap::InterpolatedIndex;
 
+// ReferencePoint 继承自hdmap::MapPathPoint
 ReferenceLine::ReferenceLine(
     const std::vector<ReferencePoint>& reference_points)
     : reference_points_(reference_points),
@@ -61,19 +62,23 @@ ReferenceLine::ReferenceLine(const MapPath& hdmap_path)
     : map_path_(hdmap_path) {
   for (const auto& point : hdmap_path.path_points()) {
     DCHECK(!point.lane_waypoints().empty());
+    // 点默认绑定了一个车道， 这里只使用第一个laneinfo
     const auto& lane_waypoint = point.lane_waypoints()[0];
     reference_points_.emplace_back(
-        hdmap::MapPathPoint(point, point.heading(), lane_waypoint), 0.0, 0.0);
+        hdmap::MapPathPoint(point, point.heading(), lane_waypoint), 0.0, 0.0);  // 0, 0 是kappa, dk
   }
   CHECK_EQ(static_cast<size_t>(map_path_.num_points()),
            reference_points_.size());
 }
-
+// https://zhuanlan.zhihu.com/p/388586935?utm_id=0
+// stitch 最大原则，复用自己的数据，把other 往前或者往后 补充
+// 从referenceline_provider 来看other 是上一阵的参考线
 bool ReferenceLine::Stitch(const ReferenceLine& other) {
   if (other.reference_points().empty()) {
     AWARN << "The other reference line is empty.";
     return true;
   }
+  // 分析other 是否可以补充this 0前方的信息
   auto first_point = reference_points_.front();
   common::SLPoint first_sl;
   if (!other.XYToSL(first_point, &first_sl)) {
@@ -82,6 +87,7 @@ bool ReferenceLine::Stitch(const ReferenceLine& other) {
   }
   bool first_join = first_sl.s() > 0 && first_sl.s() < other.Length();
 
+  // 分析other 是否可以补充this end后方的信息
   auto last_point = reference_points_.back();
   common::SLPoint last_sl;
   if (!other.XYToSL(last_point, &last_sl)) {
@@ -107,6 +113,7 @@ bool ReferenceLine::Stitch(const ReferenceLine& other) {
     }
     lower = std::lower_bound(accumulated_s.begin(), accumulated_s.end(),
                              first_sl.s());
+    // 4.1 因为this的起点在other之后，插入other的起点到this的起点 - 知乎 方浩
     size_t start_i = std::distance(accumulated_s.begin(), lower);
     reference_points_.insert(reference_points_.begin(), other_points.begin(),
                              other_points.begin() + start_i);
@@ -117,6 +124,7 @@ bool ReferenceLine::Stitch(const ReferenceLine& other) {
                 "big, stitching fails";
       return false;
     }
+    // 5.2 因为this的终点小于other的终点，把other终点拼接到参考线的终点 - 知乎 方浩
     auto upper = std::upper_bound(lower, accumulated_s.end(), last_sl.s());
     auto end_i = std::distance(accumulated_s.begin(), upper);
     reference_points_.insert(reference_points_.end(),
@@ -189,7 +197,7 @@ common::FrenetFramePoint ReferenceLine::GetFrenetPoint(
   }
 
   common::SLPoint sl_point;
-  XYToSL(path_point, &sl_point);
+  XYToSL(path_point, &sl_point);  // 先在折线段投影
   common::FrenetFramePoint frenet_frame_point;
   frenet_frame_point.set_s(sl_point.s());
   frenet_frame_point.set_l(sl_point.l());
@@ -335,7 +343,7 @@ double ReferenceLine::FindMinDistancePoint(const ReferencePoint& p0,
   return ::boost::math::tools::brent_find_minima(func_dist_square, s0, s1, 8)
       .first;
 }
-
+// 根据xy，找到投影点
 ReferencePoint ReferenceLine::GetReferencePoint(const double x,
                                                 const double y) const {
   CHECK_GE(reference_points_.size(), 0U);
@@ -368,7 +376,7 @@ ReferencePoint ReferenceLine::GetReferencePoint(const double x,
 
   double s0 = map_path_.accumulated_s()[index_start];
   double s1 = map_path_.accumulated_s()[index_end];
-
+  // 找到投影点前后两个点和s
   double s = ReferenceLine::FindMinDistancePoint(
       reference_points_[index_start], s0, reference_points_[index_end], s1, x,
       y);
@@ -722,7 +730,7 @@ bool ReferenceLine::GetSLBoundary(const common::math::Box2d& box,
   sl_boundary->set_end_l(end_l);
   return true;
 }
-
+// 这里的s 是全局的，还是相对的
 std::vector<hdmap::LaneSegment> ReferenceLine::GetLaneSegments(
     const double start_s, const double end_s) const {
   return map_path_.GetLaneSegments(start_s, end_s);
@@ -768,6 +776,7 @@ bool ReferenceLine::HasOverlap(const common::math::Box2d& box) const {
 
   double lane_left_width = 0.0;
   double lane_right_width = 0.0;
+  // sl 零起点每次是从参考线第一个点开始算的？
   const double mid_s = (sl_boundary.start_s() + sl_boundary.end_s()) / 2.0;
   if (mid_s < 0 || mid_s > Length()) {
     ADEBUG << "ref_s is out of range: " << mid_s;

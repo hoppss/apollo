@@ -39,7 +39,8 @@ DECLARE_double(look_forward_long_distance);
 
 namespace apollo {
 namespace hdmap {
-
+// https://github.com/YannZyl/Apollo-Note/blob/master/docs/planning/pnc_map.md
+// https://blog.csdn.net/lzw0107/article/details/107814610
 class PncMap {
  public:
   virtual ~PncMap() = default;
@@ -159,12 +160,14 @@ class PncMap {
   routing::RoutingResponse routing_;
   struct RouteIndex {
     LaneSegment segment;
-    std::array<int, 3> index;
+    std::array<int, 3> index;    // roadidx, passage idx, lane segment idx
   };
+  // https://blog.csdn.net/lzw0107/article/details/107814610
   std::vector<RouteIndex> route_indices_;
   int range_start_ = 0;
   int range_end_ = 0;
-  // routing ids in range
+  // routing ids in range   在一定范围内的ids
+  // 唯一性
   std::unordered_set<std::string> range_lane_ids_;
   std::unordered_set<std::string> all_lane_ids_;
 
@@ -172,8 +175,8 @@ class PncMap {
    * The routing request waypoints
    */
   struct WaypointIndex {
-    LaneWaypoint waypoint;
-    int index;
+    LaneWaypoint waypoint;    // (laneInfoPtr, s, l)
+    int index;                // index 应该来自route
     WaypointIndex(const LaneWaypoint &waypoint, int index)
         : waypoint(waypoint), index(index) {}
   };
@@ -199,7 +202,7 @@ class PncMap {
    */
   int adc_route_index_ = -1;
   /**
-   * The waypoint of the autonomous driving car
+   * The waypoint of the autonomous driving car  (LaneInfoPtr, s, l)
    */
   LaneWaypoint adc_waypoint_;
 
@@ -212,14 +215,6 @@ class PncMap {
    * for the last time.
    */
   bool stop_for_destination_ = false;
-
-  FRIEND_TEST(PncMapTest, UpdateRouting);
-  FRIEND_TEST(PncMapTest, GetNearestPointFromRouting);
-  FRIEND_TEST(PncMapTest, UpdateWaypointIndex);
-  FRIEND_TEST(PncMapTest, UpdateNextRoutingWaypointIndex);
-  FRIEND_TEST(PncMapTest, GetNeighborPassages);
-  FRIEND_TEST(PncMapTest, NextWaypointIndex);
-  FRIEND_TEST(PncMapTest, SearchForwardIndex_SearchBackwardIndex);
 };
 
 }  // namespace hdmap

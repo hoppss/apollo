@@ -76,6 +76,7 @@ bool RouteSegments::WithinLaneSegment(const routing::LaneSegment &lane_segment,
 }
 
 bool RouteSegments::Stitch(const RouteSegments &other) {
+  // 拿当前的第一个点去stitch ？ stitch 第二种情况
   auto first_waypoint = FirstWaypoint();
   bool has_overlap = IsWaypointOnSegment(other.FirstWaypoint());
   if (other.IsWaypointOnSegment(first_waypoint)) {
@@ -88,6 +89,7 @@ bool RouteSegments::Stitch(const RouteSegments &other) {
     insert(begin(), other.begin(), iter);
     has_overlap = true;
   }
+  // stitch 第一种情况，更常见吧
   auto last_waypoint = LastWaypoint();
   if (other.IsWaypointOnSegment(last_waypoint)) {
     auto iter = other.rbegin();
@@ -123,7 +125,7 @@ void RouteSegments::SetRouteEndWaypoint(const LaneWaypoint &waypoint) {
 }
 
 LaneWaypoint RouteSegments::FirstWaypoint() const {
-  return LaneWaypoint(front().lane, front().start_s, 0.0);
+  return LaneWaypoint(front().lane, front().start_s, 0.0); // (LaneInfoPtr, s, l)
 }
 
 LaneWaypoint RouteSegments::LastWaypoint() const {
@@ -263,6 +265,8 @@ bool RouteSegments::GetWaypoint(const double s, LaneWaypoint *waypoint) const {
   return has_projection;
 }
 
+// 投影计算是基于线段计算的，这就提现直线的重要性
+// 
 bool RouteSegments::GetProjection(const common::math::Vec2d &point,
                                   common::SLPoint *sl_point,
                                   LaneWaypoint *waypoint) const {
@@ -270,9 +274,11 @@ bool RouteSegments::GetProjection(const common::math::Vec2d &point,
   double accumulated_s = 0.0;
   bool has_projection = false;
   for (auto iter = begin(); iter != end();
+      // 这里的s 是绝对坐标系 ？
        accumulated_s += (iter->end_s - iter->start_s), ++iter) {
     double lane_s = 0.0;
     double lane_l = 0.0;
+    // lane 里应该也是绝对坐标系
     if (!iter->lane->GetProjection(point, &lane_s, &lane_l)) {
       AERROR << "Failed to get projection from point " << point.DebugString()
              << " on lane " << iter->lane->id().id();
@@ -361,6 +367,8 @@ bool RouteSegments::CanDriveFrom(const LaneWaypoint &waypoint) const {
   double segment_right_width = 0.0;
   segment_waypoint.lane->GetWidth(segment_waypoint.s, &segment_left_width,
                                   &segment_right_width);
+  // TODO： Lane smooth 投影  ？？？？
+  // TODO: segement_waypoint 与 waypoint 两者通过s投影有什么区别，算出来宽度不同??
   auto segment_projected_point =
       segment_waypoint.lane->GetSmoothPoint(segment_waypoint.s);
   double dist = common::util::DistanceXY(point, segment_projected_point);

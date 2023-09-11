@@ -52,6 +52,8 @@ namespace planning {
  * @class ReferenceLineInfo
  * @brief ReferenceLineInfo holds all data for one reference line.
  */
+
+// TODO:
 class ReferenceLineInfo {
  public:
   enum class LaneType { LeftForward, LeftReverse, RightForward, RightReverse };

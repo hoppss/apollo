@@ -105,6 +105,9 @@ PointENU PointFromVec2d(const Vec2d &point) {
 
 LaneInfo::LaneInfo(const Lane &lane) : lane_(lane) { Init(); }
 
+// 车道中心线都是curve 、 line_segment[]
+// 一条lane， 包括多条lane segment， lane s起点是0, 终点是 累加所有lane segment 长度
+// 每条lane 中心线数据， 左右lane marker 点，  road boarder 数据
 void LaneInfo::Init() {
   PointsFromCurve(lane_.central_curve(), &points_);
   CHECK_GE(points_.size(), 2U);
@@ -113,6 +116,8 @@ void LaneInfo::Init() {
   unit_directions_.clear();
   headings_.clear();
 
+  // 建立 s - tracking 坐标系，建立的原则是为了插值
+  // s ->  point / heading  / lane boundary / road boundary
   double s = 0;
   for (size_t i = 0; i + 1 < points_.size(); ++i) {
     segments_.emplace_back(points_[i], points_[i + 1]);
@@ -497,6 +502,7 @@ void LaneInfo::CreateKDTree() {
   segment_box_list_.clear();
   for (size_t id = 0; id < segments_.size(); ++id) {
     const auto &segment = segments_[id];
+    // world 世界坐标系做的 aabb box ??
     segment_box_list_.emplace_back(
         apollo::common::math::AABox2d(segment.start(), segment.end()), this,
         &segment, id);
