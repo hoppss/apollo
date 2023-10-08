@@ -41,6 +41,7 @@ class Node2d {
   Node2d(const double x, const double y, const double xy_resolution,
          const std::vector<double>& XYbounds) {
     // XYbounds with xmin, xmax, ymin, ymax
+    // 这里没必要保存 世界坐标系，只有栅格坐标系
     grid_x_ = static_cast<int>((x - XYbounds[0]) / xy_resolution);
     grid_y_ = static_cast<int>((y - XYbounds[2]) / xy_resolution);
     index_ = ComputeStringIndex(grid_x_, grid_y_);
@@ -63,9 +64,9 @@ class Node2d {
   void SetPreNode(std::shared_ptr<Node2d> pre_node) { pre_node_ = pre_node; }
   double GetGridX() const { return grid_x_; }
   double GetGridY() const { return grid_y_; }
-  double GetPathCost() const { return path_cost_; }
-  double GetHeuCost() const { return heuristic_; }
-  double GetCost() const { return cost_; }
+  double GetPathCost() const { return path_cost_; }   // G
+  double GetHeuCost() const { return heuristic_; }    // H
+  double GetCost() const { return cost_; }            // F
   const std::string& GetIndex() const { return index_; }
   std::shared_ptr<Node2d> GetPreNode() const { return pre_node_; }
   static std::string CalcIndex(const double x, const double y,
@@ -88,8 +89,11 @@ class Node2d {
  private:
   int grid_x_ = 0;
   int grid_y_ = 0;
+  // G
   double path_cost_ = 0.0;
+  // H
   double heuristic_ = 0.0;
+  // F
   double cost_ = 0.0;
   std::string index_;
   std::shared_ptr<Node2d> pre_node_ = nullptr;
@@ -111,6 +115,9 @@ class GridSearch {
       const std::vector<std::vector<common::math::LineSegment2d>>&
           obstacles_linesegments_vec,
       GridAStartResult* result);
+
+  // local 坐标系接口，内部转栅格
+  // 使用dp 接口
   bool GenerateDpMap(
       const double ex, const double ey, const std::vector<double>& XYbounds,
       const std::vector<std::vector<common::math::LineSegment2d>>&
@@ -143,6 +150,7 @@ class GridSearch {
       return left.second >= right.second;
     }
   };
+  // 代表已经生成， open or close
   std::unordered_map<std::string, std::shared_ptr<Node2d>> dp_map_;
 };
 }  // namespace planning

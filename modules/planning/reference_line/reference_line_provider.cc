@@ -632,7 +632,7 @@ bool ReferenceLineProvider::ExtendReferenceLine(const VehicleState &state,
   RouteSegments segment_properties;
   segment_properties.SetProperties(*segments);
   auto prev_segment = route_segments_.begin();
-  auto prev_ref = reference_lines_.begin();
+  auto prev_ref = reference_lines_.begin();   // 上一次的结果
   // 用上一次的参考线和这一次的segment 进行比较，观察是否连续
   while (prev_segment != route_segments_.end()) {
     if (prev_segment->IsConnectedSegment(*segments)) {
@@ -780,7 +780,7 @@ bool ReferenceLineProvider::IsReferenceLineSmoothValid(
     }
 
     const double diff = std::fabs(sl_new.l());
-    // diff 5m
+    // diff 5m 只是个粗糙的值
     if (diff > FLAGS_smoothed_reference_line_max_diff) {
       AERROR << "Fail to provide reference line because too large diff "
                 "between smoothed and raw reference lines. diff: "
@@ -790,13 +790,15 @@ bool ReferenceLineProvider::IsReferenceLineSmoothValid(
   }
   return true;
 }
-
+// 根据道路宽度和实际宽度，判断bound 富余程度
+// 根据路沿的情况，进行参考点的左右偏移
 AnchorPoint ReferenceLineProvider::GetAnchorPoint(
     const ReferenceLine &reference_line, double s) const {
   AnchorPoint anchor;
   anchor.longitudinal_bound = smoother_config_.longitudinal_boundary_bound();
   auto ref_point = reference_line.GetReferencePoint(s);
   if (ref_point.lane_waypoints().empty()) {
+    // 没有laneinfo 信息，没办法从s 对齐, 然后查宽度
     anchor.path_point = ref_point.ToPathPoint(s);
     anchor.lateral_bound = smoother_config_.max_lateral_boundary_bound();
     return anchor;
@@ -816,24 +818,24 @@ AnchorPoint ReferenceLineProvider::GetAnchorPoint(
   // shrink width by vehicle width, curb
   double safe_lane_width = left_width + right_width;
   safe_lane_width -= adc_width;
-  bool is_lane_width_safe = true;
+  bool is_lane_width_safe = true;  // 判断路是否足够宽
 
   if (safe_lane_width < kEpislon) {
     ADEBUG << "lane width [" << left_width + right_width << "] "
            << "is smaller than adc width [" << adc_width << "]";
     effective_width = kEpislon;
-    is_lane_width_safe = false;
+    is_lane_width_safe = false;  // 路不够宽
   }
 
   double center_shift = 0.0;
   if (hdmap::RightBoundaryType(waypoint) == hdmap::LaneBoundaryType::CURB) {
-    safe_lane_width -= smoother_config_.curb_shift();
+    safe_lane_width -= smoother_config_.curb_shift();  // 0.2m
     if (safe_lane_width < kEpislon) {
       ADEBUG << "lane width smaller than adc width and right curb shift";
       effective_width = kEpislon;
       is_lane_width_safe = false;
     } else {
-      center_shift += 0.5 * smoother_config_.curb_shift();
+      center_shift += 0.5 * smoother_config_.curb_shift();  // 单侧路沿，偏0.1m, 0.5*0.2
     }
   }
   if (hdmap::LeftBoundaryType(waypoint) == hdmap::LaneBoundaryType::CURB) {
@@ -843,13 +845,13 @@ AnchorPoint ReferenceLineProvider::GetAnchorPoint(
       effective_width = kEpislon;
       is_lane_width_safe = false;
     } else {
-      center_shift -= 0.5 * smoother_config_.curb_shift();
+      center_shift -= 0.5 * smoother_config_.curb_shift();  // 如果两侧都是路沿，则不偏
     }
   }
 
-  //  apply buffer if possible
+  //  apply buffer if possible,  lateral_buffer: 0.2
   const double buffered_width =
-      safe_lane_width - 2.0 * smoother_config_.lateral_buffer();
+      safe_lane_width - 2.0 * smoother_config_.lateral_buffer();  // 路宽 - 车宽 - 路沿偏移,
   safe_lane_width =
       buffered_width < kEpislon ? safe_lane_width : buffered_width;
 
@@ -857,7 +859,7 @@ AnchorPoint ReferenceLineProvider::GetAnchorPoint(
   if (is_lane_width_safe) {
     effective_width = 0.5 * safe_lane_width;
   }
-
+  // 单侧路沿的车道有效
   ref_point += left_vec * center_shift;
   anchor.path_point = ref_point.ToPathPoint(s);
   anchor.lateral_bound = common::math::Clamp(
@@ -926,7 +928,7 @@ bool ReferenceLineProvider::SmoothPrefixedReferenceLine(
     point.longitudinal_bound = 1e-6;
     point.lateral_bound = 1e-6;
     point.enforced = true;
-    // 找到第一个点！！！ 既退出
+    // 找到第一个点！！！ 既退出  很奇怪
     break;
   }
 

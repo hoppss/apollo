@@ -138,8 +138,8 @@ class HybridAStar {
                       std::vector<std::pair<std::shared_ptr<Node3d>, double>>,
                       cmp>
       open_pq_;
-  std::unordered_set<std::string> open_set_;
-  std::unordered_set<std::string> close_set_;
+  std::unordered_set<std::string> open_set_; // 这里是用来标id, unordered 是用来快速索引, 代表扩展过， open_pq + closed 
+  std::unordered_set<std::string> close_set_; // 标记是否是否扩展过，closed node
   std::unique_ptr<ReedShepp> reed_shepp_generator_;
   std::unique_ptr<GridSearch> grid_a_star_heuristic_generator_;
 };

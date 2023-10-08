@@ -127,7 +127,7 @@ void LaneInfo::Init() {
   }
 
   accumulated_s_.push_back(s);
-  total_length_ = s;
+  total_length_ = s;   // 每条lane 的s 都是从0开始累加的
   ACHECK(!unit_directions_.empty());
   unit_directions_.push_back(unit_directions_.back());
   for (const auto &direction : unit_directions_) {
@@ -138,6 +138,7 @@ void LaneInfo::Init() {
   }
   ACHECK(!segments_.empty());
 
+  // Lane proto 对象中的left_boundary， right_boundary 没有用， 用的是left_sample, right_sample
   sampled_left_width_.clear();
   sampled_right_width_.clear();
   for (const auto &sample : lane_.left_sample()) {

@@ -101,7 +101,7 @@ struct PathOverlap {
 };
 
 // (x,y) -> (x,y,heading)
-// 这个点所属车道，可能包含了多个车道
+// 这个点所属车道，可能包含了多个车道， 包含了全局 s-tracking 信息
 class MapPathPoint : public common::math::Vec2d {
  public:
   MapPathPoint() = default;
@@ -149,7 +149,7 @@ class MapPathPoint : public common::math::Vec2d {
 
  protected:
   double heading_ = 0.0;
-  std::vector<LaneWaypoint> lane_waypoints_;  // 一个点可能关联了多个车道
+  std::vector<LaneWaypoint> lane_waypoints_;  // 一个点可能关联了多个车道， 基本只有一个数据， 这个主要对应lane的s-tracking坐标系， s 应该是特定lane 全局
 };
 
 class Path;

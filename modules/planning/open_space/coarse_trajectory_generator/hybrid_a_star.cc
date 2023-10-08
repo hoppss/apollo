@@ -37,20 +37,27 @@ HybridAStar::HybridAStar(const PlannerOpenSpaceConfig& open_space_conf) {
       std::make_unique<ReedShepp>(vehicle_param_, planner_open_space_config_);
   grid_a_star_heuristic_generator_ =
       std::make_unique<GridSearch>(planner_open_space_config_);
+  // 默认10个 neighbor expansion, 数量包含了前进和后退两倍数量 
+  // max kappa ratio: 0.7
   next_node_num_ =
       planner_open_space_config_.warm_start_config().next_node_num();
   max_steer_angle_ = vehicle_param_.max_steer_angle() /
                      vehicle_param_.steer_ratio() *
                      planner_open_space_config_.warm_start_config()
                          .traj_kappa_contraint_ratio();
+  // step_size 0.25/0.5 米， 边生成离散点边时，每一步积分步长
   step_size_ = planner_open_space_config_.warm_start_config().step_size();
+  // xy_grid_resolution 0.2、0.3m
   xy_grid_resolution_ =
       planner_open_space_config_.warm_start_config().xy_grid_resolution();
+  // phi_grid_resolution 0.1/0.05 rad, 车身弧长至少走过 6度/3度
+  // 边长
   arc_length_ =
       planner_open_space_config_.warm_start_config().phi_grid_resolution() *
       vehicle_param_.wheel_base() /
       std::tan(max_steer_angle_ * 2 / (next_node_num_ / 2 - 1));
   if (arc_length_ < std::sqrt(2) * xy_grid_resolution_) {
+    // 最小边长不小于栅格对角线长, 边长由几个step_size 组成
     arc_length_ = std::sqrt(2) * xy_grid_resolution_;
   }
   AINFO << "arc_length" << arc_length_;
@@ -59,10 +66,13 @@ HybridAStar::HybridAStar(const PlannerOpenSpaceConfig& open_space_conf) {
       planner_open_space_config_.warm_start_config().traj_forward_penalty();
   traj_back_penalty_ =
       planner_open_space_config_.warm_start_config().traj_back_penalty();
+  // 换挡惩罚
   traj_gear_switch_penalty_ =
       planner_open_space_config_.warm_start_config().traj_gear_switch_penalty();
+  // 前轮转角惩罚
   traj_steer_penalty_ =
       planner_open_space_config_.warm_start_config().traj_steer_penalty();
+  // 方向盘改变惩罚
   traj_steer_change_penalty_ = planner_open_space_config_.warm_start_config()
                                    .traj_steer_change_penalty();
   acc_weight_ = planner_open_space_config_.iterative_anchoring_smoother_config()
@@ -171,6 +181,7 @@ bool HybridAStar::ValidityCheck(std::shared_ptr<Node3d> node) {
   return true;
 }
 
+// CS configuration space
 std::shared_ptr<Node3d> HybridAStar::LoadRSPinCS(
     const std::shared_ptr<ReedSheppPath> reeds_shepp_to_end,
     std::shared_ptr<Node3d> current_node) {
@@ -200,6 +211,10 @@ std::shared_ptr<Node3d> HybridAStar::Next_node_generator(
             static_cast<double>(index);
     traveled_distance = -step_size_;
   }
+  // index 与 steering angle 分布关系, 假设next_node_num_: 10
+  // L+  F  R-     (逆时针规律)
+  // 4 3 2 1 0
+  // 5 6 7 8 9
   // take above motion primitive to generate a curve driving the car to a
   // different grid
   std::vector<double> intermediate_x;
@@ -252,11 +267,13 @@ void HybridAStar::CalculateNodeCost(std::shared_ptr<Node3d> current_node,
   next_node->SetHeuCost(optimal_path_cost);
 }
 
+// G
 double HybridAStar::TrajCost(std::shared_ptr<Node3d> current_node,
                              std::shared_ptr<Node3d> next_node) {
   // evaluate cost on the trajectory and add current cost
   double piecewise_cost = 0.0;
   if (next_node->GetDirec()) {
+    // 轨迹cost， 长度*前进后退系数
     piecewise_cost += static_cast<double>(next_node->GetStepSize() - 1) *
                       step_size_ * traj_forward_penalty_;
   } else {
@@ -266,12 +283,15 @@ double HybridAStar::TrajCost(std::shared_ptr<Node3d> current_node,
   if (current_node->GetDirec() != next_node->GetDirec()) {
     piecewise_cost += traj_gear_switch_penalty_;
   }
+  // 前轮转角越大， 惩罚越大
   piecewise_cost += traj_steer_penalty_ * std::abs(next_node->GetSteer());
+  // parent/current 转角差越大， 惩罚越大
   piecewise_cost += traj_steer_change_penalty_ *
                     std::abs(next_node->GetSteer() - current_node->GetSteer());
   return piecewise_cost;
 }
 
+// H
 double HybridAStar::HoloObstacleHeuristic(std::shared_ptr<Node3d> next_node) {
   return grid_a_star_heuristic_generator_->CheckDpMap(next_node->GetX(),
                                                       next_node->GetY());
@@ -299,9 +319,11 @@ bool HybridAStar::GetResult(HybridAStartResult* result) {
       AERROR << "states sizes are not equal";
       return false;
     }
+    // backtrace 所以要reverse
     std::reverse(x.begin(), x.end());
     std::reverse(y.begin(), y.end());
     std::reverse(phi.begin(), phi.end());
+    // pop back 起点，下一段会包含这个点
     x.pop_back();
     y.pop_back();
     phi.pop_back();
@@ -310,6 +332,7 @@ bool HybridAStar::GetResult(HybridAStartResult* result) {
     hybrid_a_phi.insert(hybrid_a_phi.end(), phi.begin(), phi.end());
     current_node = current_node->GetPreNode();
   }
+  // 上一步pop_back 去除了起点，这里加上
   hybrid_a_x.push_back(current_node->GetX());
   hybrid_a_y.push_back(current_node->GetY());
   hybrid_a_phi.push_back(current_node->GetPhi());
@@ -599,6 +622,7 @@ bool HybridAStar::TrajectoryPartition(
 
   size_t horizon = x.size();
   partitioned_result->clear();
+  // 相当于添加数据元素，
   partitioned_result->emplace_back();
   auto* current_traj = &(partitioned_result->back());
   double heading_angle = phi.front();
@@ -655,6 +679,7 @@ bool HybridAStar::TrajectoryPartition(
 
 bool HybridAStar::GetTemporalProfile(HybridAStartResult* result) {
   std::vector<HybridAStartResult> partitioned_results;
+  // 根据前进后退，or 转角差别，轨迹分割
   if (!TrajectoryPartition(*result, &partitioned_results)) {
     AERROR << "TrajectoryPartition fail";
     return false;
@@ -662,6 +687,7 @@ bool HybridAStar::GetTemporalProfile(HybridAStartResult* result) {
   ADEBUG << "PARTION SIZE " << partitioned_results.size();
   HybridAStartResult stitched_result;
   for (const auto& result : partitioned_results) {
+    // 因为最后一个点是重复的
     std::copy(result.x.begin(), result.x.end() - 1,
               std::back_inserter(stitched_result.x));
     std::copy(result.y.begin(), result.y.end() - 1,
@@ -682,7 +708,7 @@ bool HybridAStar::GetTemporalProfile(HybridAStartResult* result) {
   *result = stitched_result;
   return true;
 }
-
+// 2023.6月 litianjiao 修改是为了得到一个相对好的解，成功得到解析解，后rs-node 依然存放到优先队列中
 bool HybridAStar::Plan(
     double sx, double sy, double sphi, double ex, double ey, double ephi,
     const std::vector<double>& XYbounds,
@@ -761,15 +787,20 @@ bool HybridAStar::Plan(
     AERROR << "end_node in collision with obstacles";
     return false;
   }
+  // TODO: 2d grid 怎么做碰撞检测
+  // DP-map 是 输入了终点，bound，obs， 从终点 到 当前expansion node
   double map_time = Clock::NowInSeconds();
   grid_a_star_heuristic_generator_->GenerateDpMap(ex, ey, XYbounds_,
                                                   obstacles_linesegments_vec_);
   ADEBUG << "map time " << Clock::NowInSeconds() - map_time;
   // load open set, pq
   open_set_.insert(start_node_->GetIndex());
+  // cost 这里用的是F 进行排序， 这里没有计算H, 可能对于起点不算H 也没有关系
   open_pq_.emplace(start_node_, start_node_->GetCost());
   // Hybrid A* begins
+  // close list 弹出的节点数量
   size_t explored_node_num = 0;
+  // rsp 解析解数量，这里没什么用
   size_t available_result_num = 0;
   double astar_start_time = Clock::NowInSeconds();
   double heuristic_time = 0.0;
@@ -781,10 +812,12 @@ bool HybridAStar::Plan(
   std::vector<std::shared_ptr<Node3d>> candidate_final_nodes;
   while (!open_pq_.empty() && open_pq_.size() < kMaxNodeNum &&
          (available_result_num == 0 || explored_node_num < max_explored_num)) {
+          // 这个括号条件 相当于之前 要么有解析解 && 但超次数， 要么 没有解析解，但是open_pq 为empty了
     std::shared_ptr<Node3d> current_node = open_pq_.top().first;
     open_pq_.pop();
     const double rs_start_time = Clock::NowInSeconds();
     std::shared_ptr<Node3d> final_node = nullptr;
+    // 相当于对每个node 都rs 连接，求了解析解
     if (AnalyticExpansion(current_node, &final_node)) {
       if (final_node_ == nullptr ||
           final_node_->GetTrajCost() > final_node->GetTrajCost()) {
@@ -828,6 +861,7 @@ bool HybridAStar::Plan(
         open_pq_.emplace(next_node, next_node->GetCost());
       }
     }
+    // 代表扩展过，在open list 或者close list
     open_set_.insert(temp_set.begin(), temp_set.end());
   }
   AINFO << "explored node num is " << explored_node_num;

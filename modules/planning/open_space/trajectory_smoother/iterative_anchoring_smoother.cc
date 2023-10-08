@@ -66,7 +66,7 @@ bool IterativeAnchoringSmoother::Smooth(
   }
   const auto start_timestamp = std::chrono::system_clock::now();
 
-  // Set gear of the trajectory 是否向前 D档, 输入前是根据方向分段了
+  // Set gear of the trajectory 根据第一个点是否向前 D档, 输入前是根据方向分段了
   gear_ = CheckGear(xWS);
 
   // Set obstacle in form of linesegments
@@ -119,8 +119,8 @@ bool IterativeAnchoringSmoother::Smooth(
     interpolated_warm_start_point2ds.emplace_back(point2d.x(), point2d.y());
   }
 
-  // <4个点没法求解
-  // <6个点 没有增加起点的曲率约束？
+  // <4个点没法求解， 第0个点fix， 第1个点固定方向， 第n-1 fix, 第n-2个点固定方向
+  // <6个点 没有增加起点的曲率约束？ 增加起始第2个点fix， 这样起点曲率不变
   const size_t interpolated_size = interpolated_warm_start_point2ds.size();
   if (interpolated_size < 4) {
     AERROR << "interpolated_warm_start_path smaller than 4, can't enforce "
@@ -135,6 +135,7 @@ bool IterativeAnchoringSmoother::Smooth(
   }
 
   // Adjust heading to ensure heading continuity
+  // 约束： 起点方向约束后一个点， 终点方向约束前一个点
   AdjustStartEndHeading(xWS, &interpolated_warm_start_point2ds);
 
   // Reset path profile by discrete point heading and curvature estimation
@@ -467,7 +468,7 @@ bool IterativeAnchoringSmoother::SmoothPath(
       AERROR << "Maximum iteration reached, path smoother early stops";
       return true;
     }
-
+    // 获得所有碰撞点index
     AdjustPathBounds(colliding_point_index, &flexible_bounds);
 
     std::vector<double> opt_x;
@@ -525,7 +526,7 @@ bool IterativeAnchoringSmoother::CheckCollisionAvoidance(
     if (skip_checking) {
       continue;
     }
-
+    // BUG? 后退的时候，这里为什么heading_ 要+PI， 构造ego_box、shift_distance 与前进后退没关系吧
     const double heading = gear_
                                ? path_points[i].theta()
                                : NormalizeAngle(path_points[i].theta() + M_PI);
@@ -565,7 +566,7 @@ void IterativeAnchoringSmoother::AdjustPathBounds(
   const double collision_decrease_ratio =
       planner_open_space_config_.iterative_anchoring_smoother_config()
           .collision_decrease_ratio();
-
+  // 所有碰撞点
   for (const auto index : colliding_point_index) {
     bounds->at(index) *= collision_decrease_ratio;
   }

@@ -49,17 +49,19 @@ Node3d::Node3d(double x, double y, double phi,
   y_grid_ = static_cast<int>(
       (y_ - XYbounds[2]) /
       open_space_conf.warm_start_config().xy_grid_resolution());
+  // 角度栅格索引，进行了修正，【-PI，PI】 修正成 [0-2PI], resolution 0.05/0.1  62.8/125.6
   phi_grid_ = static_cast<int>(
       (phi_ - (-M_PI)) /
       open_space_conf.warm_start_config().phi_grid_resolution());
 
   traversed_x_.push_back(x);
   traversed_y_.push_back(y);
-  traversed_phi_.push_back(phi);
+  traversed_phi_.push_back(phi);  // 起点塞进去
 
   index_ = ComputeStringIndex(x_grid_, y_grid_, phi_grid_);
 }
 
+// Reedsheep node, 为了提高性能， 这里不是解析解能行就直接返回
 Node3d::Node3d(const std::vector<double>& traversed_x,
                const std::vector<double>& traversed_y,
                const std::vector<double>& traversed_phi,
@@ -70,6 +72,7 @@ Node3d::Node3d(const std::vector<double>& traversed_x,
   CHECK_EQ(traversed_x.size(), traversed_y.size());
   CHECK_EQ(traversed_x.size(), traversed_phi.size());
 
+  // x_, y_ 指向最后一个位置
   x_ = traversed_x.back();
   y_ = traversed_y.back();
   phi_ = traversed_phi.back();
@@ -90,6 +93,7 @@ Node3d::Node3d(const std::vector<double>& traversed_x,
   traversed_phi_ = traversed_phi;
 
   index_ = ComputeStringIndex(x_grid_, y_grid_, phi_grid_);
+  // 多少个点
   step_size_ = traversed_x.size();
 }
 

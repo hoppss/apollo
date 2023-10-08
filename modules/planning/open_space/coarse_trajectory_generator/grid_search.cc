@@ -24,8 +24,10 @@ namespace apollo {
 namespace planning {
 
 GridSearch::GridSearch(const PlannerOpenSpaceConfig& open_space_conf) {
+  // 0.25 / 0.5 m
   xy_grid_resolution_ =
       open_space_conf.warm_start_config().grid_a_star_xy_resolution();
+  // node_radius: 0.25
   node_radius_ = open_space_conf.warm_start_config().node_radius();
 }
 
@@ -34,6 +36,7 @@ double GridSearch::EuclidDistance(const double x1, const double y1,
   return std::sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
 }
 
+// TODO: 障碍物是局部坐标系, Node2d 是栅格坐标系怎么计算距离？ BUG
 bool GridSearch::CheckConstraints(std::shared_ptr<Node2d> node) {
   const double node_grid_x = node->GetGridX();
   const double node_grid_y = node->GetGridY();
@@ -194,6 +197,7 @@ bool GridSearch::GenerateDpMap(
       if (!CheckConstraints(next_node)) {
         continue;
       }
+      // open or close state， 忽略
       if (dp_map_.find(next_node->GetIndex()) != dp_map_.end()) {
         continue;
       }

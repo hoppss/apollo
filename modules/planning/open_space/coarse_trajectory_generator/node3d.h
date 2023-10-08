@@ -74,20 +74,23 @@ class Node3d {
   static std::string ComputeStringIndex(int x_grid, int y_grid, int phi_grid);
 
  private:
+  // double 相对坐标系， flu 或者 车位坐标系， 车位左上角坐标为origin， 米
   double x_ = 0.0;
   double y_ = 0.0;
   double phi_ = 0.0;
-  size_t step_size_ = 1;
+  size_t step_size_ = 1;   // 多少个点step， 最少一步
   std::vector<double> traversed_x_;
   std::vector<double> traversed_y_;
   std::vector<double> traversed_phi_;
+  // 删格化
   int x_grid_ = 0;
   int y_grid_ = 0;
   int phi_grid_ = 0;
+  // log debug 构成唯一id，判断是否相同
   std::string index_;
-  double traj_cost_ = 0.0;
-  double heuristic_cost_ = 0.0;
-  double cost_ = 0.0;
+  double traj_cost_ = 0.0;         // G
+  double heuristic_cost_ = 0.0;    // H
+  double cost_ = 0.0;              // F
   std::shared_ptr<Node3d> pre_node_ = nullptr;
   double steering_ = 0.0;
   // true for moving forward and false for moving backward

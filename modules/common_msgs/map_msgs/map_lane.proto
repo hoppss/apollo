@@ -5,6 +5,23 @@ package apollo.hdmap;
 import "modules/common_msgs/map_msgs/map_geometry.proto";
 import "modules/common_msgs/map_msgs/map_id.proto";
 
+// Generalization of a line.
+// roadmap_node_t
+// message CurveSegment {
+//  oneof curve_type {
+//    LineSegment line_segment = 1;
+//  }
+//  optional double s = 6;  // start position (s-coordinate)
+//  optional apollo.common.PointENU start_position = 7;
+//  optional double heading = 8;  // start orientation
+//  optional double length = 9;
+//}
+
+// An object similar to a line but that need not be straight.
+// message Curve {
+//  repeated CurveSegment segment = 1;    // 点列构成线段组
+//}
+
 message LaneBoundaryType {
   enum Type {
     UNKNOWN = 0;
@@ -22,16 +39,17 @@ message LaneBoundaryType {
 }
 
 message LaneBoundary {
-  optional Curve curve = 1;
+  optional Curve curve = 1;       // 点列构成线段组
 
   optional double length = 2;
   // indicate whether the lane boundary exists in real world
   optional bool virtual = 3;
   // in ascending order of s
-  repeated LaneBoundaryType boundary_type = 4;
+  repeated LaneBoundaryType boundary_type = 4;  // 只补充s 对应type
 }
 
 // Association between central point to closest boundary.
+// ***专门给出宽度，而不是去curve 里面去插值
 message LaneSampleAssociation {
   optional double s = 1;
   optional double width = 2;
@@ -48,6 +66,7 @@ message Lane {
   optional Curve central_curve = 2;
 
   // Lane boundary curve.
+  // 这里只用了s和type，curve相当于没用，而是用的下面的sample 信息
   optional LaneBoundary left_boundary = 3;
   optional LaneBoundary right_boundary = 4;
 
@@ -91,6 +110,7 @@ message Lane {
   optional Id junction_id = 16;
 
   // Association between central point to closest boundary.
+  // 自车道boundary
   repeated LaneSampleAssociation left_sample = 17;
   repeated LaneSampleAssociation right_sample = 18;
 
